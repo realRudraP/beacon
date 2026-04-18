@@ -136,6 +136,7 @@
                                      warning, and under-hours dashboard flag. \\
     1.2 & 17 April 2026 & Rudra Ponkshe & Open source revision. The project is now set to
     natively support multi-tenant deployments, the India specific defaults are now configurable as locale-configurable records. Pluggable wage collection strategies are introduced. Push Notifications and crash reporting providers are introduced as optional and swappable. Added open source audience and reframed out of scope items as community contribution roadmap\\
+    1.3 & 18 April 2026 & Rudra Ponkshe & \textbf{ADR-001 Integration:} Reverted to single-tenant architecture. Removed organization isolation logic to simplify offline sync and deployment for remote sites. \\
     \bottomrule
 \end{tabularx}
 
@@ -230,21 +231,10 @@ internet connectivity is unreliable or intermittent. It is designed to be
 self-hosted: a single \texttt{docker compose up} from the repository root
 brings up a fully functional instance.
 
-\subsubsection*{Deployment Models}
-
-Beacon supports the following deployment configurations:
-
+\subsubsection*{Deployment Model}
 \begin{description}[leftmargin=3.5cm, style=nextline]
-    \item[Single-Organisation]
-        The default and simplest deployment. One instance serves one
-        organisation. All configuration is scoped to that organisation.
-        Suitable for a single farm, construction site, or field office.
-    \item[Multi-Tenant]
-        A single backend instance hosts multiple independent organisations,
-        each with fully isolated data, configuration, and user accounts.
-        Intended for managed deployments or service providers offering
-        Beacon as a hosted solution. Enabled via a compile-time flag; not
-        required for the default self-hosted case.
+    \item[Single-Tenant (Self-Hosted)]
+        The system is deployed as a standalone instance. All users, data, and configurations belong to a single environment. This allows for simplified offline synchronization and local-network operation in remote areas without requiring a persistent connection to a central multi-tenant cloud.
 \end{description}
 
 \subsubsection*{In Scope for Version 1.0}
@@ -488,7 +478,7 @@ specifications appear in Section~\ref{sec:features}.
         Accessible via HTTPS (TLS 1.2 or higher). Must support concurrent
         connections from all enrolled devices and dashboard users.
         Distributed as a Docker image; no other runtime dependencies are
-        required on the host.
+        required on the host. For remote sites, the server MAY be hosted on a local network (Intranet) to allow workers to sync data without external internet access.
 
     \item[Network]
         The Android app SHALL operate fully offline. Sync is triggered
