@@ -1,0 +1,1902 @@
+\documentclass[12pt, a4paper]{article}
+
+% -------------------------------------------------------
+% Packages
+% -------------------------------------------------------
+\usepackage[a4paper, margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{fancyhdr}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{svg}
+
+% -------------------------------------------------------
+% Hyperlink styling
+% -------------------------------------------------------
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    citecolor=black,
+    pdftitle={Beacon SRS},
+    pdfauthor={Rudra Ponkshe},
+    pdfsubject={Software Requirements Specification}
+}
+
+% -------------------------------------------------------
+% Header / Footer
+% -------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small SRS Document}
+\lhead{\small Beacon --- Location Based Attendance Tracking System}
+\rfoot{\small Page \thepage}
+\lfoot{\small \href{https://gitlab.com/realRudraP/beacon}{gitlab.com/realRudraP/beacon}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% -------------------------------------------------------
+% Section title formatting
+% -------------------------------------------------------
+\titleformat{\section}{\large\bfseries}{{\thesection}}{1em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\itshape\bfseries}{\thesubsubsection}{1em}{}
+
+% -------------------------------------------------------
+% Useful shorthand for FR/NFR blocks
+% -------------------------------------------------------
+\newcommand{\frblock}[2]{%
+    \noindent\textbf{#1}\hfill\textit{Priority: #2}%
+    \par\smallskip%
+}
+\newcommand{\srsfield}[1]{\noindent\textbf{#1:}\par}
+
+% ================================================================
+% DOCUMENT
+% ================================================================
+\begin{document}
+
+% -------------------------------------------------------
+% COVER PAGE
+% -------------------------------------------------------
+\begin{titlepage}
+    \centering
+    \thispagestyle{empty}
+
+    \noindent\rule{\linewidth}{1.5pt}
+    \vspace{0.5em}
+
+    {\large\scshape Software Requirements Specification}
+
+    \vspace{0.3em}
+    \noindent\rule{\linewidth}{0.5pt}
+    \vspace{2em}
+
+    {\Huge\bfseries Beacon}
+
+    \vspace{0.5em}
+    {\large Location Based Attendance Tracking System}\\[4pt]
+    {\normalsize Offline-First, Self-Hostable, Open Source}
+
+    \vspace{2em}
+
+    \fbox{%
+        \parbox{0.25\linewidth}{%
+            \centering
+            \textbf{Version}\\[4pt]
+            1.2 --- Draft
+        }%
+    }
+
+    \vfill
+
+    \begin{tabularx}{0.85\linewidth}{@{} l X @{}}
+        \toprule
+        \textbf{Author}       & Rudra Ponkshe \\
+        \midrule
+        \textbf{Repository}   & \url{https://gitlab.com/realRudraP/beacon} \\
+        \midrule
+        \textbf{Licence}      & To be determined \\
+        \midrule
+        \textbf{Date}         & April 2026 \\
+        \bottomrule
+    \end{tabularx}
+
+    \vspace{2em}
+    \noindent\rule{\linewidth}{1.5pt}
+\end{titlepage}
+
+% -------------------------------------------------------
+% REVISION HISTORY
+% -------------------------------------------------------
+\newpage
+\thispagestyle{fancy}
+\section*{Revision History}
+\addcontentsline{toc}{section}{Revision History}
+
+\begin{tabularx}{\linewidth}{@{} c c l X @{}}
+    \toprule
+    \textbf{Version} & \textbf{Date} & \textbf{Author} & \textbf{Description} \\
+    \midrule
+    0.1 & 08 April 2026 & Rudra Ponkshe & Initial draft setup \\
+    1.0 & 09 April 2026 & Rudra Ponkshe & First complete SRS version for TA-2 submission \\
+    1.1 & 12 April 2026 & Rudra Ponkshe & Added: worker attendance history, wage calculation,
+                                     remote system configuration, India public holidays,
+                                     per-worker weekly off, absentia marking, petty-cash
+                                     ledger, clock-in reminder notifications, short-hours
+                                     warning, and under-hours dashboard flag. \\
+    1.2 & 17 April 2026 & Rudra Ponkshe & Open source revision. The project is now set to
+    natively support multi-tenant deployments, the India specific defaults are now configurable as locale-configurable records. Pluggable wage collection strategies are introduced. Push Notifications and crash reporting providers are introduced as optional and swappable. Added open source audience and reframed out of scope items as community contribution roadmap\\
+    \bottomrule
+\end{tabularx}
+
+% -------------------------------------------------------
+% TABLE OF CONTENTS
+% -------------------------------------------------------
+\newpage
+\tableofcontents
+\newpage
+
+% -------------------------------------------------------
+% 1. INTRODUCTION
+% -------------------------------------------------------
+\section{Introduction}
+
+\subsection{Purpose}
+This Software Requirements Specification (SRS) describes the complete
+functional and non-functional requirements for \textbf{Beacon}, an
+open-source, self-hostable, location-based attendance tracking system
+designed for environments with sparse or no internet connectivity.
+The system comprises an Android mobile application for field workers and
+a web-based dashboard for managers and administrators.
+
+This document serves as the single source of truth for all stakeholders,
+including those involved in design, development, testing, deployment, and
+community contribution. It is published openly alongside the source code
+so that contributors, deployers, and evaluators can understand the
+system's intent and constraints without requiring access to any private
+materials.
+
+Beacon is designed to be deployed by any organisation that needs
+offline-capable, GPS-verified attendance tracking. While the reference
+deployment targets a remote farm, the system is intentionally
+locale-agnostic and configurable: default values reflect the reference
+deployment, but deployers are expected to adjust them to their
+operational context. All locale-specific defaults (public holidays,
+currency, timezone, language) are configurable without modifying source
+code.
+
+\subsection{Document Conventions}
+The following conventions are used throughout this document. The key words
+\textbf{SHALL}, \textbf{SHOULD}, and \textbf{MAY} are to be interpreted as
+described in \href{https://datatracker.ietf.org/doc/html/rfc2119}{RFC 2119}.
+
+\begin{description}[leftmargin=3cm, style=nextline]
+    \item[\textbf{FR-XX}]   Functional Requirement identifier (e.g., FR-01, FR-02).
+    \item[\textbf{NFR-XX}]  Non-Functional Requirement identifier.
+    \item[\textbf{BR-XX}]   Business Rule identifier.
+    \item[\textbf{Bold}]    Used for requirement identifiers, field names, and key terms.
+    \item[\textit{Italic}]  Used for priority labels and notes.
+    \item[\texttt{Monospace}] Used for technical identifiers, API fields, and code references.
+    \item[SHALL]            Denotes a mandatory requirement.
+    \item[SHOULD]           Denotes a recommended but optional requirement.
+    \item[MAY]              Denotes a purely optional feature.
+\end{description}
+
+Requirements are assigned one of three priority levels:
+\begin{itemize}
+    \item \textbf{High} --- Must be implemented in Version 1.0.
+    \item \textbf{Medium} --- Strongly recommended; may be deferred to a
+          subsequent sprint.
+    \item \textbf{Low} --- Optional enhancement, targeted for a future
+          community milestone.
+\end{itemize}
+
+\newpage
+
+\subsection{Intended Audience and Reading Suggestions}
+\begin{table}[h!]
+    \centering
+    \caption{Intended Audience}
+    \label{tab:audience}
+    \begin{tabularx}{\linewidth}{@{} l X @{}}
+        \toprule
+        \textbf{Audience}           & \textbf{Recommended Sections} \\
+        \midrule
+        Deploying Organisation      & \S1, \S2, \S3 (feature descriptions only), \S5 \\
+        Software Developers         & All sections, especially \S3 and \S4 \\
+        QA / Testers                & \S3 (Acceptance Criteria), \S5, Appendix B \\
+        System Administrators       & \S2.4, \S4, \S5.3, \S6.2 \\
+        Open-Source Contributors    & \S1.4 (Contribution Roadmap), \S3, \S4,
+                                      Appendix B (Issues List) \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{Project Scope}
+\label{sec:scope}
+
+Beacon is a two-component management system built for environments where
+internet connectivity is unreliable or intermittent. It is designed to be
+self-hosted: a single \texttt{docker compose up} from the repository root
+brings up a fully functional instance.
+
+\subsubsection*{Deployment Models}
+
+Beacon supports the following deployment configurations:
+
+\begin{description}[leftmargin=3.5cm, style=nextline]
+    \item[Single-Organisation]
+        The default and simplest deployment. One instance serves one
+        organisation. All configuration is scoped to that organisation.
+        Suitable for a single farm, construction site, or field office.
+    \item[Multi-Tenant]
+        A single backend instance hosts multiple independent organisations,
+        each with fully isolated data, configuration, and user accounts.
+        Intended for managed deployments or service providers offering
+        Beacon as a hosted solution. Enabled via a compile-time flag; not
+        required for the default self-hosted case.
+\end{description}
+
+\subsubsection*{In Scope for Version 1.0}
+\begin{itemize}
+    \item GPS geofence based clock-in and clock-out for workers through
+          their installed Android app.
+    \item Selfie photograph capture at clock-in for identity verification.
+    \item Offline-first operation with background record-synchronisation
+          upon restoring network access.
+    \item Random mid-day GPS presence checks (frequency remotely
+          configurable) during active work sessions.
+    \item Worker-facing attendance history view in the Android app.
+    \item Pluggable wage calculation engine with three built-in strategies:
+          daily fixed rate, monthly salary divided by working days, and
+          hourly rate. Deployers may register custom strategies.
+    \item Remote configuration of all operational parameters: acceptable
+          work locations (geofence), required GPS accuracy threshold,
+          required daily work duration, and random location check frequency.
+    \item Holiday management: a locale-configurable default holiday list
+          (India gazetted holidays shipped as the reference preset);
+          per-employee configurable weekly day(s) off; admin ability to
+          mark an absence as paid or unpaid leave.
+    \item Petty cash ledger: admin-controlled balance per worker; worker
+          expense entry; real-time balance and transaction history visible
+          in the Android app; all admin actions fully audited.
+    \item Pluggable push notification provider (Firebase Cloud Messaging
+          as the default implementation; alternative providers
+          such as ntfy or Gotify can be substituted via configuration).
+    \item Optional crash reporting and diagnostics provider (Firebase
+          Crashlytics as the default; can be disabled or replaced without
+          modifying application code).
+    \item Daily clock-in reminder notification at a configurable time
+          (default: 09:00 local time) on non-holiday working days.
+    \item Post clock-out duration summary with a short-hours warning if
+          the session was below the configured required work duration;
+          corresponding flag in the admin dashboard.
+    \item Web dashboard for managers and administrators: daily attendance
+          view, holiday management, wage summary, petty-cash oversight,
+          and report generation.
+    \item Role-based access control (Field Worker, Manager, Admin).
+    \item Configurable business rules: geofence tolerance, late policy,
+          overtime, missed clock-out auto-session end.
+\end{itemize}
+
+\subsubsection*{Community Contribution Roadmap}
+
+The following capabilities are out of scope for Version 1.0 but are
+identified as well-defined contribution opportunities for the open-source
+community. Each item is tracked as an issue in the project repository.
+
+\begin{itemize}
+    \item \textbf{Payroll integration} --- Automated salary disbursement
+          or direct integration with banking or payroll APIs.
+    \item \textbf{Inventory and bookkeeping} --- Material tracking,
+          purchase records, or general ledger features.
+    \item \textbf{In-app messaging} --- Worker-to-manager or
+          worker-to-worker chat within the app.
+    \item \textbf{Full HR management} --- Leave applications, performance
+          reviews, document storage, or contract management.
+    \item \textbf{ML-based identity verification} --- Facial recognition
+          or liveness detection on selfie capture.
+    \item \textbf{Statutory compliance calculations} --- Tax deductions,
+          provident fund (PF), employee state insurance (ESI), or TDS
+          computation. (These are jurisdiction-specific and intentionally
+          left to deployer-provided plugins.)
+    \item \textbf{Additional locale presets} --- Holiday calendars and
+          wage rule presets for jurisdictions beyond India.
+    \item \textbf{Half-day attendance marking} --- Sub-day attendance
+          granularity.
+    \item \textbf{Alternative notification backends} --- Ready-made
+          provider implementations beyond FCM (ntfy, Gotify, APNS, etc.).
+\end{itemize}
+
+\subsection{References}
+\begin{enumerate}
+    \item Beacon --- Requirements Document (Draft), internal project notes,
+          January 2026. \textit{[Primary source for this SRS.]}
+    \item IEEE Std 830-1998, \textit{IEEE Recommended Practice for Software
+          Requirements Specifications}. IEEE, 1998.
+    \item Android Developer Documentation: Background Location Access.
+          \url{https://developer.android.com/training/location}
+    \item Android Developer Documentation: WorkManager.
+          \url{https://developer.android.com/topic/libraries/architecture/workmanager}
+    \item OWASP Mobile Security Testing Guide (MSTG), v1.7.0.
+          \url{https://owasp.org/www-project-mobile-security-testing-guide/}
+    \item RFC 7519: JSON Web Token (JWT). IETF, 2015.
+    \item Ministry of Personnel, Public Grievances and Pensions, Government
+          of India: List of Gazetted Public Holidays (annual circular).
+          \textit{[Shipped as the reference locale preset; not a hard
+          dependency of the system.]}
+    \item Firebase Cloud Messaging (FCM) Documentation.
+          \url{https://firebase.google.com/docs/cloud-messaging}
+          \textit{[Default notification provider; optional.]}
+\end{enumerate}
+
+% -------------------------------------------------------
+% 2. OVERALL DESCRIPTION
+% -------------------------------------------------------
+\section{Overall Description}
+
+\subsection{Product Perspective}
+Beacon is a standalone, purpose-built system and is not a module or
+extension of any existing platform.
+
+The system consists of two interacting components:
+
+\begin{enumerate}
+    \item \textbf{Android Worker App} --- A lightweight native Android
+          application installed on field workers' devices. It handles
+          authentication, GPS capture, selfie recording, and local storage
+          of attendance events, syncing to the backend when connectivity is
+          available.
+    \item \textbf{Web Dashboard (Manager / Admin)} --- A browser-based
+          interface for management staff to monitor attendance in real time,
+          configure schedules and policies, manage staff accounts, and
+          export reports.
+\end{enumerate}
+
+Both components communicate with a \textbf{central backend server} via a
+REST API over HTTPS. The Android app is designed to function independently
+of this connection for all core attendance actions, queuing records locally
+until sync is possible.
+
+\subsubsection*{Locale and Internationalisation}
+
+Beacon ships with a reference configuration targeting Indian farm
+deployments (IST timezone, INR currency, India gazetted holidays, English
+UI). All locale-sensitive values are configurable without modifying source
+code:
+
+\begin{itemize}
+    \item \textbf{Timezone} --- configurable per organisation; all
+          internal timestamps are stored in UTC.
+    \item \textbf{Currency} --- configurable; used for display in wage
+          summaries and petty-cash screens.
+    \item \textbf{Holiday presets} --- the India gazetted holiday list
+          is the default seed; administrators may replace or extend it.
+          Additional locale presets may be contributed by the community
+          (see \S1.4 Contribution Roadmap).
+    \item \textbf{Reminder notification time} --- default 09:00 local
+          time; configurable per organisation.
+\end{itemize}
+
+No assumption is made that deployers are located in India. The India
+defaults are a convenience for the reference deployment, not a
+requirement of the system.
+
+\subsection{Product Features}
+A high-level summary of key features is listed below. Detailed
+specifications appear in Section~\ref{sec:features}.
+
+\begin{itemize}
+    \item \textbf{Geofenced Clock-in / Clock-out} with GPS accuracy
+          validation.
+    \item \textbf{Selfie Capture} for identity assurance at clock-in.
+    \item \textbf{Offline-First Operation} with reliable queued sync.
+    \item \textbf{Random Mid-Day GPS Checks} (remotely configurable
+          frequency) for continued presence verification.
+    \item \textbf{Duplicate Attendance Prevention} enforced on device
+          and server.
+    \item \textbf{Worker Attendance History} viewable on the Android app.
+    \item \textbf{Pluggable Wage Calculation Engine} with built-in
+          strategies: daily fixed, monthly divided, and hourly.
+    \item \textbf{Remote System Configuration} of geofence locations,
+          GPS accuracy threshold, required work duration, and ping
+          frequency.
+    \item \textbf{Holiday Management}: locale-configurable default
+          holiday list; per-worker weekly off; absentia marking as
+          paid/unpaid.
+    \item \textbf{Petty-Cash Ledger} with worker expense entry, balance
+          view, admin top-up, and full audit trail.
+    \item \textbf{Pluggable Push Notifications} (FCM default; swappable).
+    \item \textbf{Optional Crash Reporting} (Crashlytics default;
+          disable-able).
+    \item \textbf{Short-Hours Warning} on clock-out and dashboard flag.
+    \item \textbf{Manager Dashboard} with daily view, history, anomaly
+          flagging, and under-hours indicators.
+    \item \textbf{Staff Scheduling} and \textbf{Holiday Management} via
+          calendar interface.
+    \item \textbf{Report Export} in CSV and PDF formats.
+    \item \textbf{Attendance Editing and Overrides} with full audit trail.
+    \item \textbf{Configurable Business Rules} for geofence, late policy,
+          and overtime.
+\end{itemize}
+
+\newpage
+\subsection{User Classes and Characteristics}
+\begin{table}[h!]
+    \centering
+    \caption{User Classes and Characteristics}
+    \label{tab:users}
+    \begin{tabularx}{\linewidth}{@{} l l X @{}}
+        \toprule
+        \textbf{User Class} & \textbf{Platform} & \textbf{Characteristics} \\
+        \midrule
+        Field Worker  & Android App      & Field staff with basic smartphone
+                                           literacy. May have limited proficiency
+                                           in the deployment language. Primary
+                                           concern is a simple, fast clock-in/out
+                                           flow. \\
+        \midrule
+        Manager       & Web Dashboard    & Supervisory staff who monitor daily
+                                           attendance, approve anomalies, and
+                                           generate reports. Moderate technical
+                                           proficiency. \\
+        \midrule
+        Administrator & Web Dashboard    & System configurator. Sets geofence
+                                           parameters, manages staff accounts and
+                                           schedules. High technical proficiency
+                                           expected. May be the same person as
+                                           the Manager. \\
+        \midrule
+        Deployer      & Server / CLI     & Technical operator responsible for
+                                           self-hosting the system. Expected to
+                                           be comfortable with Docker and basic
+                                           Linux administration. Interacts with
+                                           the system via \texttt{docker compose},
+                                           environment variables, and the admin
+                                           dashboard. \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{Operating Environment}
+\begin{description}[leftmargin=3.5cm, style=nextline]
+    \item[Android App]
+        Android 10 (API level 29) or higher. Minimum 2~GB RAM. Requires
+        camera, GPS (fine location), and background location permissions.
+        Must operate in GPS-limited rural environments; no assumption of
+        stable data connectivity. Google Play Services are required only
+        when Firebase is used as the notification provider; deployments
+        using an alternative provider do not have this dependency.
+
+    \item[Web Dashboard]
+        Modern evergreen browsers: Google Chrome 110+, Mozilla Firefox 110+,
+        Microsoft Edge 110+. Minimum screen resolution 1280 $\times$ 720.
+        Stable broadband or mobile internet connection recommended.
+
+    \item[Backend Server]
+        Linux-based server environment (Ubuntu 22.04 LTS or equivalent).
+        Accessible via HTTPS (TLS 1.2 or higher). Must support concurrent
+        connections from all enrolled devices and dashboard users.
+        Distributed as a Docker image; no other runtime dependencies are
+        required on the host.
+
+    \item[Network]
+        The Android app SHALL operate fully offline. Sync is triggered
+        automatically when any network interface (WiFi or mobile data)
+        becomes available. No minimum bandwidth is assumed for field
+        devices.
+\end{description}
+
+\subsection{Design and Implementation Constraints}
+\begin{enumerate}
+    \item The Android application SHALL be developed natively for Android
+          (Kotlin); cross-platform frameworks are discouraged due to GPS
+          and background task reliability requirements.
+    \item All data transmission between client and server SHALL use HTTPS
+          with TLS 1.2 or higher.
+    \item Selfie images SHALL be compressed before transmission to minimise
+          bandwidth consumption (target: under 200~KB per image).
+    \item The system SHALL NOT transmit raw GPS coordinates to any
+          third-party analytics service.
+    \item Background GPS ping frequency SHALL be configurable and SHALL
+          NOT exceed 4 pings per active work session to preserve battery
+          life.
+    \item All attendance records SHALL store timestamps in UTC; display
+          conversion to local time is the responsibility of the client
+          layer.
+    \item The web dashboard SHALL be accessible without installing any
+          browser plugin or extension.
+    \item Push notification and crash reporting integrations SHALL be
+          implemented behind provider interfaces. The default
+          implementations use Firebase; these MAY be replaced by
+          alternative implementations via environment variable
+          configuration. The core application SHALL NOT contain
+          unconditional references to any specific provider SDK.
+    \item The wage calculation engine SHALL be implemented as a set of
+          named, selectable strategies. Built-in strategies are described
+          in FR-13. Custom strategies MAY be registered by deployers
+          without modifying core application code.
+\end{enumerate}
+
+\subsection{User Documentation}
+The following documentation SHALL be delivered alongside the system:
+
+\begin{itemize}
+    \item \textbf{Field Worker Quick-Start Card}: A single-page visual
+          guide (printable) covering app installation, login, clock-in,
+          and clock-out.
+    \item \textbf{Manager / Admin User Manual}: A full guide covering
+          all dashboard functions: attendance monitoring, scheduling,
+          holiday management, exports, and system configuration.
+    \item \textbf{Self-Hosting Guide}: Covers Docker-based deployment,
+          environment variable reference, backup procedures, and
+          troubleshooting. Targeted at deployers.
+    \item \textbf{Contributor Guide}: Covers repository structure,
+          development environment setup, architecture decision records,
+          and contribution workflow. Published in the repository root as
+          \texttt{CONTRIBUTING.md}.
+    \item \textbf{In-App Help}: Contextual error messages on the Android
+          app SHALL be clear and actionable (see FR-02 acceptance
+          criteria).
+\end{itemize}
+
+\subsection{Assumptions and Dependencies}
+
+\textbf{Assumptions:}
+\begin{enumerate}
+    \item Each field worker is issued or personally owns an Android device
+          meeting the minimum hardware specification.
+    \item The work premises have a definable GPS boundary suitable for
+          geofence configuration.
+    \item The deploying organisation will provide accurate GPS coordinates
+          for all acceptable work locations prior to system configuration.
+    \item Workers will carry their assigned device during all working
+          hours.
+    \item At least one manager or administrator will have reliable internet
+          access to operate the web dashboard.
+    \item The deploying organisation will select an appropriate wage
+          calculation strategy and configure it before the system goes
+          live.
+    \item The default holiday list (India gazetted holidays) will be
+          reviewed and adjusted by the administrator to match the
+          deployment locale before going live.
+    \item Petty-cash balances are managed exclusively by the admin;
+          workers can only add expense records, not modify balances
+          directly.
+\end{enumerate}
+
+\textbf{Dependencies:}
+\begin{enumerate}
+    \item When Firebase is used as the notification provider, Google Play
+          Services must be available on all worker devices. This dependency
+          is lifted when an alternative notification provider is configured.
+    \item The backend server must be deployed and reachable over the
+          internet before the Android app can perform any sync operation.
+    \item A push notification infrastructure endpoint (FCM or equivalent)
+          is required for admin notifications, and optionally worker notifications in the future.
+    \item An accurate system clock (NTP-synchronised) is assumed on the
+          backend server for all timestamp generation.
+\end{enumerate}
+
+% -------------------------------------------------------
+% 3. SYSTEM FEATURES
+% -------------------------------------------------------
+\section{System Features}
+\label{sec:features}
+
+\frblock{FR-01: Employee Authentication}{}
+
+\srsfield{Description}
+The system SHALL allow a field worker to log in using a username and
+password assigned by the administrator. Each device SHALL be associated
+with exactly one employee account, and the device ID and model SHALL be
+recorded for audit purposes.
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item Login succeeds only for accounts with valid, active credentials.
+    \item On successful login, the device ID is recorded server-side.
+    \item The device shall remain logged in even when it's offline for a set number of days, which SHALL be defined in the configuration, following which it has to re-authenticate with the server.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 2: Clock-In and Clock-Out}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+Core attendance recording functionality. Workers record the start and end
+of their work session via the Android app with GPS and photo verification.
+\hfill \textit{Priority: High}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-02: Clock-In (Attendance Start)}{}
+
+\srsfield{Description}
+The system SHALL allow a logged-in field worker to initiate a clock-in
+event for the current working day, subject to geofence and GPS accuracy
+validation.
+
+\srsfield{Rules}
+\begin{itemize}
+    \item The worker SHALL be within the configured work premises geofence
+          boundary (within the allowed tolerance).
+    \item A selfie photograph SHALL be captured at the moment of clock-in.
+    \item Clock-in SHALL function without an active internet connection.
+\end{itemize}
+
+\srsfield{Captured Data}
+\begin{itemize}
+    \item \texttt{timestamp} (UTC)
+    \item \texttt{gps\_lat}, \texttt{gps\_lon} (decimal degrees)
+    \item \texttt{gps\_accuracy} (metres)
+    \item \texttt{selfie\_image\_url} (populated after sync)
+    \item \texttt{device\_id}, \texttt{app\_version}
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item Clock-in succeeds only if the worker is inside the geofence
+          AND GPS accuracy is within the configured threshold.
+    \item If offline, the record is stored in local device storage and
+          automatically synced upon network restoration.
+    \item On failure, the app SHALL display the specific reason
+          (e.g., ``Outside geofence'', ``GPS accuracy too low'',
+          ``Camera permission denied'').
+\end{itemize}
+
+\bigskip
+\frblock{FR-03: Clock-Out (Attendance End)}{}
+
+\srsfield{Description}
+The system SHALL allow a worker with an active clock-in record to record
+the end of their work session.
+
+\srsfield{Rules}
+\begin{itemize}
+    \item A clock-out SHALL only be possible if a clock-in exists for
+          the current day.
+    \item GPS coordinates SHALL be captured at clock-out.
+    \item Selfie capture at clock-out is configurable (see open issues,
+          Appendix~\ref{app:issues}).
+    \item Clock-out location enforcement (geofence) is configurable.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item The clock-out button SHALL only be visible when an active
+          clock-in record exists for the day.
+    \item Offline clock-out is stored locally and synced upon
+          network restoration.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 3: Duplicate Attendance Prevention}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+The system prevents workers from clocking in or out more than once per
+day without managerial override.
+\hfill \textit{Priority: High}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-04: Prevent Duplicate Attendance}{}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item Once a clock-in record exists for a given date, further
+          clock-ins on that date SHALL be blocked unless a manager
+          explicitly overrides.
+    \item Clock-out SHALL be permitted only once per clock-in record.
+    \item Duplicate prevention SHALL be enforced both on-device and
+          server-side (to handle sync edge cases).
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 4: Random Mid-Day GPS Checks}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+The system performs randomized background GPS pings during an active work
+session to provide continued presence assurance without requiring manual
+action from the worker.
+\hfill \textit{Priority: Medium}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-05: Random Mid-Day GPS Checks}{}
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Pings SHALL only occur during an active work session
+          (between clock-in and clock-out).
+    \item Ping frequency SHALL be configurable (e.g., 1--4 pings per
+          day).
+    \item Each ping records: GPS coordinates, GPS accuracy, and timestamp.
+    \item Ping behaviour SHALL be designed to minimise battery drain.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item GPS pings are queued offline and synced upon connectivity.
+    \item If background location permissions or OS restrictions prevent
+          pings, the system SHALL log the reason server-side.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 5: Manager Dashboard --- Daily Attendance View}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+Managers can view a consolidated daily attendance summary for all staff,
+including flags for anomalies.
+\hfill \textit{Priority: High}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-06: Daily Attendance View}{}
+
+\srsfield{Description}
+The web dashboard SHALL present a daily attendance list showing, for each
+employee: clock-in time, clock-out time, total hours worked, and any
+flags or issues (e.g., outside geofence, low GPS accuracy, missed
+clock-out).
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item The attendance list SHALL load within 2 seconds for up to
+          500 employee records on a standard broadband connection.
+    \item The list SHALL be filterable by date, employee name, and
+          flag status.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 6: Individual Staff Attendance History}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+Managers can drill down into a per-employee attendance history view.
+\hfill \textit{Priority: High}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-07: Staff Attendance History}{}
+
+\srsfield{Description}
+The dashboard SHALL allow managers to view a selected employee's
+attendance history, including daily records, total hours, anomaly flags,
+and selfie photo references (subject to privacy configuration).
+
+% ----------------------------------------------------------------
+\subsection{Feature 7: Staff Scheduling}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+Administrators and managers can configure working day patterns per
+employee.
+\hfill \textit{Priority: Medium}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-08: Staff Scheduling (Working Days per Employee)}{}
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Each employee SHALL have a configurable working day pattern
+          (Monday--Sunday toggles or a shift template).
+    \item Schedule changes SHALL apply to future dates by default;
+          retroactive application is configurable.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item Schedule changes are immediately reflected in the attendance
+          dashboard view.
+    \item If a worker clocks in on a non-working day, the record is
+          flagged automatically.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 8: Holiday Management}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+Administrators can define public and organisation-specific holidays via a
+calendar interface.
+\hfill \textit{Priority: Medium}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-09: Public Holiday Management}{}
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Holidays SHALL be markable on a calendar interface.
+    \item Each holiday SHALL be configurable as paid or unpaid.
+    \item Holidays SHALL be applicable to all employees or a selected
+          subset.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item Holidays are visible in the dashboard calendar view.
+    \item Attendance recorded on a holiday is flagged or handled
+          according to the configured rule.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 9: Reports and Export}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+Managers can generate and export attendance reports for payroll and
+compliance purposes.
+\hfill \textit{Priority: High}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-10: Attendance Report Export}{}
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Reports SHALL be exportable in CSV and PDF formats.
+    \item Export SHALL be filterable by date range and/or individual
+          employee.
+    \item Reports SHALL include: days present, days absent, total hours,
+          and overtime hours.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 10: Attendance Edits and Overrides}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+Managers or administrators can correct erroneous records or add missing
+entries, with a complete audit trail.
+\hfill \textit{Priority: Medium}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-11: Attendance Edits and Overrides}{}
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Authorised users SHALL be able to add missing entries, correct
+          existing entries, and approve flagged anomalies.
+    \item Every edit SHALL store: editor identity, edit timestamp, and a
+          mandatory reason note.
+    \item The original record SHALL be preserved for audit; edits create
+          a versioned history.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 11: Worker Attendance History (Mobile)}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+Field workers can view their own attendance history directly within the
+Android app, without requiring access to the web dashboard.
+\hfill \textit{Priority: High}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-12: Worker Self-Service Attendance History}{}
+
+\srsfield{Description}
+The Android app SHALL provide a dedicated screen showing the authenticated
+worker's attendance records, including date, clock-in time, clock-out
+time, total hours worked, holiday status, and any flags (e.g., short
+hours, outside geofence).
+
+\srsfield{Rules}
+\begin{itemize}
+    \item History SHALL be browsable by month with a summary of days
+          present, days absent, and total hours.
+    \item Records SHALL be read-only for the worker; no editing is
+          permitted from this view.
+    \item History SHALL be available offline for previously synced records.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item The attendance history screen loads within 2 seconds for up to
+          90 days of records from local cache.
+    \item Workers can only view their own records; cross-worker data
+          access is not permitted.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 12: Wage Calculation Engine}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+The system automatically calculates each worker's earned wages for a
+given period using a configurable, pluggable calculation strategy.
+\hfill \textit{Priority: High}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-13: Pluggable Wage Calculation Engine}{}
+
+\srsfield{Description}
+The system SHALL calculate a worker's gross wages for any date range
+using the strategy configured for that worker. Each worker SHALL have a
+\texttt{wage\_strategy} field that selects which calculation strategy to
+apply. Three strategies are built in; deployers MAY register additional
+strategies without modifying core application code.
+
+\srsfield{Built-in Wage Strategies}
+
+\begin{description}[leftmargin=4cm, style=nextline]
+    \item[\texttt{DAILY\_FIXED}]
+        \textit{(Default)} The worker has a configured daily rate.
+        Wage = paid days $\times$ daily rate. A day is a ``paid day'' if
+        the worker attended, or if the day is a paid public holiday, or
+        if the admin has marked the absence as paid leave. Weekly off
+        days and unpaid absences are excluded.
+
+    \item[\texttt{MONTHLY\_DIVIDED}]
+        The worker has a configured monthly salary. For a given month,
+        the effective daily rate = monthly salary $\div$ number of
+        calendar days in that month. Wage = effective daily rate
+        $\times$ paid days. Useful when the employment contract specifies
+        a fixed monthly figure rather than a per-day rate.
+
+    \item[\texttt{HOURLY}]
+        The worker has a configured hourly rate. Wage = hourly rate
+        $\times$ total hours worked, derived from session durations in
+        the attendance records. Overtime hours (if the overtime policy
+        is enabled) MAY be calculated at a separate configured multiplier.
+\end{description}
+
+\srsfield{Rules (all strategies)}
+\begin{itemize}
+    \item Weekly off days are excluded from all wage calculations
+          regardless of strategy.
+    \item Wage summaries SHALL be viewable by the worker on the Android
+          app and by managers/admins on the dashboard.
+    \item The wage calculation SHALL be performed server-side;
+          client-side figures are display-only and refreshed on each sync.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item Wage calculations update automatically when attendance records,
+          leave markings, or rate/salary values are modified.
+    \item The Android app displays the worker's current month wage
+          summary on the home screen or a dedicated earnings screen.
+    \item Managers can export wage summaries per employee or for all
+          employees for a selected date range (CSV / PDF).
+    \item Switching a worker's strategy recalculates wages from the
+          effective date of the change; historical records are not
+          retroactively recalculated unless explicitly triggered by
+          an admin.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 13: Remote System Configuration}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+Administrators can remotely configure all operational parameters of the
+system from the web dashboard. Changes propagate to worker devices on
+next sync without requiring an app update.
+\hfill \textit{Priority: High}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-14: Remote Configuration Panel}{}
+
+\srsfield{Description}
+The admin dashboard SHALL provide a configuration panel through which
+all system-wide and per-worker operational parameters can be updated
+remotely.
+
+\srsfield{Configurable Parameters}
+\begin{itemize}
+    \item \textbf{Acceptable Work Locations:} One or more named geofence
+          zones (radius or polygon), each with a centre-point, radius,
+          and boundary tolerance. Multiple zones may be active
+          simultaneously.
+    \item \textbf{Required GPS Accuracy Threshold:} Maximum acceptable
+          GPS error radius (metres) for clock-in acceptance.
+    \item \textbf{Required Daily Work Duration:} Minimum hours per day
+          that constitute a full attendance; used for short-hours
+          detection.
+    \item \textbf{Random Location Check Frequency:} Number of background
+          GPS pings per active work session (range: 0--4).
+    \item \textbf{Offline Login Window:} Maximum duration (days) for
+          cached credential login without server re-authentication.
+    \item \textbf{Missed Clock-Out Auto-Close:} Enable/disable and
+          threshold in hours.
+    \item \textbf{Late Clock-In Policy:} Threshold time and grace period.
+    \item \textbf{Overtime Policy:} Daily threshold and rounding rule.
+    \item \textbf{Wage Strategy (per worker):} One of \texttt{DAILY\_FIXED},
+          \texttt{MONTHLY\_DIVIDED}, \texttt{HOURLY}, or a custom
+          registered strategy identifier.
+    \item \textbf{Notification Provider:} Identifier of the active push
+          notification provider (e.g., \texttt{fcm}, \texttt{ntfy}).
+          Read-only on the dashboard; set via server environment
+          configuration.
+\end{itemize}
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Configuration changes SHALL be versioned and timestamped.
+    \item The Android app SHALL fetch the latest configuration on every
+          successful sync and apply it immediately.
+    \item Configuration is applied system-wide unless a parameter
+          supports per-worker override (noted per parameter above).
+    \item All configuration changes SHALL be recorded in the audit log
+          with the admin identity.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item A configuration change made on the dashboard is reflected on
+          a connected worker device within one sync cycle (target:
+          60 seconds on available network).
+    \item Invalid configuration values (e.g., negative GPS threshold)
+          are rejected with a descriptive error message.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 14: Holiday Management: Locale Defaults \&
+Per-Worker Weekly Off}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+The system ships with a locale-configurable default holiday list. The
+reference preset contains all Government of India gazetted public
+holidays and is applied by default, but administrators are expected to
+review and adjust it to match their deployment context. Administrators
+can additionally configure per-employee weekly off days and ad-hoc
+holidays.
+\hfill \textit{Priority: High}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-15: Locale-Configurable Holiday Defaults}{}
+
+\srsfield{Description}
+The system SHALL ship with a pre-seeded holiday list for the active
+locale preset. The reference preset (India) contains all Government of
+India gazetted national and festival public holidays for the current
+calendar year, marked as paid by default.
+
+\srsfield{Rules}
+\begin{itemize}
+    \item The active locale preset SHALL be configurable via the admin
+          dashboard or server environment without a software release.
+    \item The reference India preset SHALL include at minimum: Republic
+          Day (26 Jan), Holi, Good Friday, Ambedkar Jayanti (14 Apr),
+          Labour Day (1 May), Independence Day (15 Aug), Gandhi Jayanti
+          (2 Oct), Dussehra, Diwali, and Christmas Day (25 Dec).
+    \item Administrators SHALL be able to add, remove, or reclassify any
+          holiday (paid $\leftrightarrow$ unpaid) for their organisation.
+    \item Holiday applicability can be set to: all employees, or a named
+          subset.
+    \item Additional locale presets (holiday lists for other
+          jurisdictions) MAY be contributed to the repository and
+          selected via configuration.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item On a configured paid holiday, a worker who does not clock in
+          SHALL NOT be flagged as absent; the day is recorded as a paid
+          holiday automatically.
+    \item The holiday calendar is visible to workers on the Android app
+          (read-only).
+\end{itemize}
+
+\bigskip
+\frblock{FR-16: Per-Worker Weekly Off Configuration}{}
+
+\srsfield{Description}
+Each worker's weekly day(s) off SHALL be individually configurable by
+the administrator. Weekly off days are excluded from attendance
+expectations and wage calculations.
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Default weekly off: Sunday (configurable to any day or
+          combination of days).
+    \item Changes to a worker's weekly off pattern apply from the
+          effective date forward; historical records are not retroactively
+          modified.
+    \item If a public holiday falls on a weekly off day, the holiday
+          takes precedence in display; no additional compensation is
+          implied by this SRS.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item A worker's weekly off day does not trigger an absent flag or
+          a clock-in reminder notification.
+    \item Weekly off days are visually distinguished in the worker's
+          attendance history view.
+\end{itemize}
+
+\bigskip
+\frblock{FR-17: Absentia Marking as Paid / Unpaid Leave}{}
+
+\srsfield{Description}
+When a worker is absent on a working day (not a public holiday or weekly
+off), the administrator SHALL be able to retroactively mark the absence
+as either paid leave or unpaid leave.
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Absent days with no marking default to \textit{unpaid}.
+    \item A paid leave marking causes the day to count as a paid day
+          in wage calculations.
+    \item An unpaid leave marking explicitly records the day as excluded
+          from wages.
+    \item All leave markings SHALL be recorded in the audit log with
+          admin identity, timestamp, and optional note.
+    \item The worker's attendance history view in the Android app SHALL
+          reflect the leave classification (paid leave / unpaid leave /
+          absent) once synced.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item Leave marking updates wage calculations immediately upon save.
+    \item The worker can see the leave classification in their attendance
+          history; they cannot modify it.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 15: Petty-Cash Ledger}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+The system maintains a per-worker petty-cash balance. Workers can record
+individual expenditures; administrators control the balance and can view
+all transactions. All admin actions are audited and visible as entries in
+the worker's transaction feed.
+\hfill \textit{Priority: High}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-18: Worker Petty-Cash View and Expense Entry}{}
+
+\srsfield{Description}
+The Android app SHALL display the worker's current petty-cash balance and
+a chronological list of all transactions (credits and debits), including
+admin-initiated entries.
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Workers can create \textit{expense records} (debit entries)
+          containing: amount, date, and a short description.
+    \item Workers can view their current balance and full transaction
+          history.
+    \item Workers CANNOT modify or delete existing entries.
+    \item Admin-initiated entries (top-ups, adjustments, corrections)
+          SHALL appear in the worker's transaction feed with a system
+          label (e.g., ``Admin credit --- [note]'').
+    \item The petty-cash screen SHALL function offline; expense records
+          are queued and synced.
+\end{itemize}
+
+\srsfield{Captured Data per Expense Entry}
+\begin{itemize}
+    \item \texttt{entry\_id}, \texttt{worker\_id}
+    \item \texttt{entry\_type}: \texttt{debit} (worker expense) or
+          \texttt{credit} (admin top-up / adjustment)
+    \item \texttt{amount} (positive decimal)
+    \item \texttt{description} (free text, max 200 characters)
+    \item \texttt{entry\_date} (worker-entered date; defaults to today)
+    \item \texttt{created\_at} (UTC timestamp of record creation)
+    \item \texttt{created\_by}: worker ID or admin ID
+    \item \texttt{audit\_note} (mandatory for admin-initiated entries)
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item The balance displayed is the sum of all credits minus all
+          debits for the worker.
+    \item New worker expense entries appear immediately in the local
+          transaction list; they are marked as ``pending sync'' until
+          server acknowledgement.
+    \item Admin entries appear in the worker's feed within one sync
+          cycle of the admin action.
+\end{itemize}
+
+\bigskip
+\frblock{FR-19: Admin Petty-Cash Management}{}
+
+\srsfield{Description}
+Administrators SHALL be able to view all workers' petty-cash balances
+and transaction histories, and to update any worker's balance via credit
+or adjustment entries, each with a mandatory audit note.
+
+\srsfield{Rules}
+\begin{itemize}
+    \item The dashboard SHALL show a petty-cash summary table: all
+          workers, current balance, last transaction date.
+    \item Admin can drill into any worker's full transaction history.
+    \item Admin can add a credit entry (top-up) or a corrective
+          adjustment (positive or negative) with a mandatory note.
+    \item Admin CANNOT delete worker expense entries; corrections must
+          be made via adjustment entries.
+    \item Every admin action (top-up, adjustment, balance reset) is
+          recorded in the system-wide audit log AND creates a visible
+          entry in the affected worker's transaction feed.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item An admin credit entry updates the worker's displayed balance
+          within one sync cycle on the worker's device.
+    \item The audit log entry for every admin petty-cash action includes:
+          admin identity, target worker, entry type, amount, note, and
+          UTC timestamp.
+    \item The petty-cash dashboard view loads within 2 seconds for up
+          to 500 workers.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 16: Clock-In Reminder Notifications}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+The Android app notifies workers to mark their attendance on working days
+where they have not yet clocked in. Notification delivery is handled by
+a pluggable provider; Firebase Cloud Messaging is the default.
+\hfill \textit{Priority: Medium}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-20: Daily Clock-In Reminder}{}
+
+\srsfield{Description}
+The system SHALL send a push notification to a worker's device at the
+configured reminder time (default: 09:00 local time) on any day that is
+a scheduled working day (not a public holiday, not the worker's weekly
+off day) if the worker has not yet clocked in for that day.
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Notifications SHALL be delivered via the configured push
+          notification provider. The provider is selected via server
+          environment configuration; the application SHALL NOT hardcode
+          a provider.
+    \item The notification SHALL NOT be sent if the worker has already
+          clocked in for the day by the reminder time.
+    \item The notification SHALL NOT be sent on public holidays or the
+          worker's configured weekly off day(s).
+    \item If the device is offline at the scheduled time, the
+          notification SHALL be delivered as soon as the device comes
+          online, provided the worker has still not clocked in for that
+          day.
+    \item Workers SHALL be able to disable this notification in the app
+          settings (opt-out).
+    \item The reminder time SHALL be configurable per organisation
+          (default: 09:00 local time).
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item Notification is not delivered on holidays or weekly off days.
+    \item Notification is not delivered if clock-in already exists.
+    \item Tapping the notification opens the clock-in screen directly.
+\end{itemize}
+
+% ----------------------------------------------------------------
+\subsection{Feature 17: Short-Hours Detection and Warning}
+% ----------------------------------------------------------------
+
+\subsubsection*{Description and Priority}
+Upon clock-out, the app informs the worker of their total session
+duration and warns them if they have worked less than the required daily
+duration. The same flag appears in the manager dashboard.
+\hfill \textit{Priority: Medium}
+
+\subsubsection*{Functional Requirements}
+
+\frblock{FR-21: Post-Clock-Out Duration Summary and Warning}{}
+
+\srsfield{Description}
+Immediately after a successful clock-out, the Android app SHALL display
+a summary screen showing the total duration of the work session. If the
+duration is less than the configured required work duration (see FR-14,
+BR-09), a short-hours warning SHALL be prominently displayed.
+
+\srsfield{Rules}
+\begin{itemize}
+    \item Session duration = clock-out timestamp $-$ clock-in timestamp.
+    \item The warning is informational only; no automated action
+          (deduction, lock-out, or escalation) is triggered.
+    \item The short-hours flag SHALL be recorded on the attendance record
+          server-side.
+    \item The manager dashboard daily attendance view SHALL display a
+          visible indicator (e.g., flag or colour coding) on any record
+          where the session duration was below the required threshold.
+    \item The flag is visible to managers; no notification is sent to
+          the manager automatically.
+\end{itemize}
+
+\srsfield{Acceptance Criteria}
+\begin{itemize}
+    \item The post-clock-out screen always shows total session duration
+          in hours and minutes.
+    \item If duration $<$ configured minimum, a warning message is shown
+          before the worker can dismiss the screen.
+    \item The short-hours flag is visible in the manager dashboard for
+          the affected date.
+    \item If the session was auto-closed (missed clock-out), the flag
+          applies if the auto-close duration is less than the minimum.
+\end{itemize}
+
+
+% ================================================================
+% SECTION 4 — EXTERNAL INTERFACE REQUIREMENTS
+% ================================================================
+\section{External Interface Requirements}
+
+\subsection{User Interfaces}
+
+\textbf{Android Worker App screens:}
+\begin{itemize}
+    \item \textbf{Login Screen}: Username/password fields.
+    \item \textbf{Home Screen}: Today's attendance status (clocked in /
+          not clocked in / clocked out), current month wage summary,
+          petty-cash balance snapshot, and sync status indicator.
+    \item \textbf{Clock-In Flow}: GPS acquisition indicator, selfie
+          camera capture, confirmation, and error message display.
+    \item \textbf{Clock-Out Flow}: GPS confirmation, optional selfie,
+          post-clock-out duration summary screen with short-hours warning
+          if applicable.
+    \item \textbf{Attendance History Screen}: Monthly calendar / list
+          view of the worker's own attendance records; read-only.
+    \item \textbf{Earnings Screen}: Month-to-date wage calculation
+          breakdown (days attended or hours worked depending on strategy,
+          rate, total earned).
+    \item \textbf{Petty-Cash Screen}: Current balance, chronological
+          transaction list (worker expenses and admin entries), and
+          add-expense form.
+    \item \textbf{Holiday Calendar Screen}: Read-only view of
+          organisation holidays and the worker's weekly off days.
+    \item \textbf{Sync Status Screen}: Queue of pending records, last
+          sync time, retry option.
+    \item \textbf{Settings Screen}: Notification opt-out toggle and app
+          information.
+\end{itemize}
+
+\textbf{Web Dashboard screens:}
+\begin{itemize}
+    \item \textbf{Login}: Credential entry with session management.
+    \item \textbf{Daily Attendance View}: Tabular summary with filters,
+          flag indicators, and short-hours markers.
+    \item \textbf{Employee List}: Searchable, paginated list with account
+          management actions.
+    \item \textbf{Employee History}: Per-employee timeline view with
+          leave classification, wage strategy, and wage summary.
+    \item \textbf{Absentia / Leave Marking}: Interface to mark an absent
+          day as paid or unpaid leave for a specific employee.
+    \item \textbf{Wage Summary}: Per-employee and aggregate wage
+          calculation view with strategy label; exportable.
+    \item \textbf{Scheduling Calendar}: Visual week/month calendar with
+          working day toggles per employee.
+    \item \textbf{Holiday Calendar}: Date picker for marking holidays
+          with type (paid/unpaid) and applicability settings; active
+          locale preset holidays visible and editable.
+    \item \textbf{Petty-Cash Dashboard}: Summary table of all worker
+          balances; drill-down to individual transaction history; add
+          credit / adjustment form.
+    \item \textbf{Export / Reports}: Date range selector, format
+          selector (CSV / PDF), download trigger; covers attendance,
+          wages, and petty-cash.
+    \item \textbf{Admin Settings / Remote Configuration}: All operational
+          parameters: geofence zones, GPS accuracy threshold, required
+          work duration, ping frequency, login window, policy toggles,
+          wage strategies, and locale settings.
+    \item \textbf{Audit Log Viewer}: Searchable, filterable log of all
+          admin actions across attendance, configuration, and petty-cash.
+\end{itemize}
+
+UI design SHALL prioritise simplicity and minimal tap-count for the
+worker app. Error messages SHALL be written in plain language, not
+technical codes.
+
+\subsection{Hardware Interfaces}
+
+\begin{description}[leftmargin=3cm, style=nextline]
+    \item[GPS Receiver]
+        The Android app SHALL interface with the device GPS receiver via
+        the Android Location API (FusedLocationProviderClient). Accuracy
+        metadata SHALL be recorded with every GPS reading.
+    \item[Camera]
+        The app SHALL access the device camera via Android Camera2 API
+        or CameraX for selfie capture. Front or rear camera selection is
+        configurable (see Appendix~\ref{app:issues}, issue 5).
+    \item[Storage]
+        Local SQLite or Room database on the Android device SHALL be used
+        to persist offline attendance records.
+    \item[Server Hardware]
+        No specific server hardware is mandated; the backend SHALL run on
+        any Linux-based virtual machine or cloud instance meeting minimum
+        CPU and memory specifications.
+\end{description}
+
+\subsection{Software Interfaces}
+
+\begin{description}[leftmargin=3cm, style=nextline]
+    \item[Android SDK]
+        Minimum API level 29 (Android 10). Google Play Services required
+        only when Firebase notification provider is active.
+    \item[REST API]
+        The Android app and web dashboard communicate with the backend
+        via a RESTful API over HTTPS. Request and response bodies use
+        JSON format (UTF-8 encoding).
+    \item[Authentication]
+        JSON Web Tokens (JWT, RFC 7519) SHALL be used for session
+        management. Tokens SHALL have a configurable expiry.
+    \item[Database]
+        Backend database technology is not mandated by this SRS but SHALL
+        support ACID-compliant transactions given the audit requirements.
+    \item[Notification Provider Interface]
+        The backend SHALL expose a \texttt{NotificationProvider}
+        interface. The FCM implementation is bundled by default. An
+        alternative implementation MAY be activated by setting the
+        \texttt{BEACON\_NOTIFICATION\_PROVIDER} environment variable
+        and providing the corresponding configuration.
+    \item[Crash Reporting Interface]
+        The Android app SHALL expose a \texttt{CrashReporter} interface.
+        The Firebase Crashlytics implementation is bundled by default
+        and MAY be disabled by setting
+        \texttt{BEACON\_CRASH\_REPORTING=disabled}. When disabled, the
+        no-op implementation is activated and no data leaves the device.
+    \item[Export Libraries]
+        Server-side libraries for PDF generation and CSV serialisation
+        are required for FR-10.
+\end{description}
+
+\subsection{Communications Interfaces}
+
+\begin{description}[leftmargin=3cm, style=nextline]
+    \item[HTTPS / TLS]
+        All client--server communication SHALL use HTTPS with TLS 1.2
+        or higher. Self-signed certificates SHALL NOT be used in
+        production.
+    \item[Sync Protocol]
+        The Android app SHALL use a background sync mechanism (WorkManager
+        or equivalent) that retries failed sync attempts with exponential
+        backoff, up to a maximum retry count.
+    \item[Image Upload]
+        Selfie images SHALL be uploaded as multipart/form-data or as
+        Base64-encoded payloads within the JSON body, with a maximum
+        compressed size of 200~KB per image.
+    \item[Push Notifications]
+        Push notifications SHALL be dispatched via the configured
+        \texttt{NotificationProvider}. The default provider is Firebase
+        Cloud Messaging (FCM). Provider selection does not require an
+        app update; it is a server-side configuration change.
+\end{description}
+
+% -------------------------------------------------------
+% 5. OTHER NON-FUNCTIONAL REQUIREMENTS
+% -------------------------------------------------------
+\section{Other Non-Functional Requirements}
+
+\subsection{Performance Requirements}
+
+\begin{description}[leftmargin=2.5cm, style=nextline]
+    \item[NFR-01]
+        \textbf{App Startup:} The Android app SHALL reach the home screen
+        within 3 seconds on a mid-range device (2~GB RAM, Android 10,
+        cold start).
+    \item[NFR-02]
+        \textbf{Clock-In Response:} The clock-in confirmation SHALL be
+        displayed to the user within 5 seconds of tapping the clock-in
+        button, assuming GPS is already acquired.
+    \item[NFR-03]
+        \textbf{Sync Latency:} Offline-queued records SHALL sync to the
+        server within 30 seconds of network restoration on a connection
+        of at least 100~kbps (2G equivalent).
+    \item[NFR-04]
+        \textbf{Dashboard Load:} The daily attendance view SHALL render
+        within 2 seconds for up to 500 employee records on a standard
+        broadband connection ($\geq$ 10~Mbps).
+    \item[NFR-05]
+        \textbf{Battery Impact:} Background GPS ping operations SHALL NOT
+        cause measurable battery drain exceeding 5\% per hour above the
+        device idle baseline.
+\end{description}
+
+\subsection{Safety Requirements}
+
+\begin{description}[leftmargin=2.5cm, style=nextline]
+    \item[NFR-06]
+        \textbf{Data Loss Prevention:} No attendance record SHALL be
+        permanently lost due to a sync failure. Records SHALL remain in
+        local storage until server-side acknowledgement is received.
+    \item[NFR-07]
+        \textbf{Graceful Degradation:} If the backend server is
+        unavailable, the Android app SHALL continue to accept clock-in
+        and clock-out events without displaying an error to the worker
+        (beyond a sync-pending indicator).
+    \item[NFR-08]
+        \textbf{Conflict Resolution:} In the event of a sync conflict
+        (e.g., manager edited a record while an offline record exists),
+        the system SHALL flag the conflict for manual review rather than
+        silently overwriting either version.
+\end{description}
+
+\subsection{Security Requirements}
+
+\begin{description}[leftmargin=2.5cm, style=nextline]
+    \item[NFR-09]
+        \textbf{Authentication:} All API endpoints SHALL require a valid
+        JWT token. Unauthenticated requests SHALL return HTTP 401.
+    \item[NFR-10]
+        \textbf{Role-Based Access Control:} The system SHALL enforce role
+        boundaries between Field Worker, Manager, and Admin. A field
+        worker SHALL NOT be able to access any manager or admin endpoint.
+    \item[NFR-11]
+        \textbf{Audit Log:} All attendance edits, overrides, and
+        administrative actions (account creation/deletion, config changes)
+        SHALL be recorded in an immutable audit log with actor identity
+        and timestamp.
+    \item[NFR-12]
+        \textbf{Data in Transit:} All data transmitted between any client
+        and the server SHALL be encrypted using TLS 1.2 or higher.
+    \item[NFR-13]
+        \textbf{Data at Rest:} Selfie images and personal data stored on
+        the server SHALL be stored with access controls limiting retrieval
+        to authorised roles.
+    \item[NFR-14]
+        \textbf{Device Binding:} The system SHALL record device ID at
+        login and flag anomalies where the same account logs in from a
+        different device without prior de-registration.
+    \item[NFR-15]
+        \textbf{Petty-Cash Ledger Integrity:} The petty-cash balance
+        SHALL be calculated server-side as the authoritative sum of all
+        credit and debit entries. Client-side balance is for display only
+        and is overwritten on each sync. No balance field SHALL be stored
+        as a mutable scalar to prevent tampering.
+    \item[NFR-16]
+        \textbf{Wage Calculation Consistency:} Wage figures displayed on
+        the worker app and manager dashboard SHALL be derived from the
+        same server-side calculation engine. Discrepancies between views
+        are not permitted.
+    \item[NFR-17]
+        \textbf{Notification Delivery:} Clock-in reminder notifications
+        SHALL be delivered within 5 minutes of the scheduled reminder
+        time on a device with active network connectivity.
+    \item[NFR-18]
+        \textbf{Configuration Propagation:} Remote configuration changes
+        SHALL reach all active devices within 60 seconds of save on a
+        device with network connectivity.
+    \item[NFR-19]
+        \textbf{Provider Isolation:} The crash reporting provider SHALL
+        NOT have access to attendance records, GPS coordinates, selfie
+        images, wage data, or petty-cash data. It SHALL receive only
+        anonymised crash context (stack traces, device model, OS version,
+        app version).
+\end{description}
+
+\subsection{Software Quality Attributes}
+
+\begin{description}[leftmargin=3cm, style=nextline]
+    \item[Reliability]
+        The backend service SHALL target 99.5\% uptime (excluding
+        scheduled maintenance windows). The Android app SHALL have zero
+        data loss under all network conditions.
+    \item[Maintainability]
+        The codebase SHALL follow a documented coding standard. All
+        business rule thresholds (geofence radius, ping frequency,
+        late-in time, etc.) SHALL be stored as configurable parameters,
+        not hard-coded values. Provider interfaces SHALL be documented
+        with enough detail for a contributor to implement a new provider
+        without reading core application code.
+    \item[Usability]
+        The full clock-in flow (app open to confirmation) SHALL be
+        completable in under 60 seconds by a first-time user following
+        the quick-start card.
+    \item[Portability]
+        The web dashboard SHALL function correctly on Chrome, Firefox,
+        and Edge (current and previous major versions) without any
+        browser-specific workarounds.
+    \item[Debuggability]
+        The Android app SHALL maintain an on-device event log (``black
+        box'') exportable by administrators for support purposes. The
+        backend SHALL assign correlation IDs to all requests for
+        end-to-end tracing.
+    \item[Scalability]
+        The system architecture SHALL support scaling to at least 1,000
+        concurrent active devices without architectural changes.
+    \item[Self-Hostability]
+        A deployer with basic Docker and Linux knowledge SHALL be able
+        to bring up a fully functional instance by following the
+        self-hosting guide, without writing any code or modifying any
+        source files.
+\end{description}
+
+% ================================================================
+% SECTION 6 — OTHER REQUIREMENTS
+% ================================================================
+\section{Other Requirements}
+
+\subsection{Business Rules}
+
+The following rules govern system behaviour. All default values are
+appropriate for the reference deployment (remote farm, India) and are
+expected to be reviewed and adjusted by the deploying organisation.
+Every rule marked as \textit{configurable} can be changed via the admin
+dashboard or server environment without modifying source code.
+
+\begin{description}[leftmargin=3.5cm, style=nextline]
+    \item[BR-01 Geofence Type]
+        Geofence boundary may be defined as a radius (circular) or a
+        polygon. Multiple named zones may be active simultaneously.
+        Default: single radius zone. \textit{Configurable.}
+    \item[BR-02 Geofence Tolerance]
+        Acceptable distance outside the geofence boundary before
+        clock-in is rejected. Default: 150~m. \textit{Configurable.}
+    \item[BR-03 GPS Accuracy Threshold]
+        Maximum acceptable GPS error radius for clock-in.
+        Default: 50~m. \textit{Configurable} (FR-14).
+    \item[BR-04 Clock-Out Location]
+        Whether clock-out is permitted outside the geofence.
+        Default: Yes (allowed anywhere). \textit{Configurable.}
+    \item[BR-05 Missed Clock-Out]
+        Whether to auto-close a session after a configurable number of
+        hours. Default: Yes, after 10 hours. Manager notification on
+        auto-close: Yes. \textit{Configurable.}
+    \item[BR-06 Late Policy]
+        A clock-in after a configurable time is flagged as late. Grace
+        period configurable (default: 15 minutes). Optional; disabled
+        by default. \textit{Configurable.}
+    \item[BR-07 Overtime Policy]
+        Hours worked beyond a daily threshold are flagged as overtime.
+        Rounding rule configurable (e.g., nearest 15 minutes). Optional;
+        disabled by default. \textit{Configurable.}
+    \item[BR-08 Mid-Day Ping Frequency]
+        Number of random GPS checks per active session. Range: 0--4.
+        Default: 2. \textit{Configurable} (FR-14).
+    \item[BR-09 Required Daily Work Duration]
+        Minimum session duration constituting a full day's work. Used
+        for short-hours detection (FR-21). Default: 8 hours.
+        \textit{Configurable} (FR-14).
+    \item[BR-10 Worker Weekly Off Day]
+        Default weekly off day for all workers: Sunday. Overridable per
+        worker to any day(s) of the week (FR-16). Weekly off days are
+        excluded from attendance expectations and wage calculations.
+        \textit{Configurable per worker.}
+    \item[BR-11 Holiday Locale Preset]
+        At system initialisation, the active locale preset is seeded as
+        the organisation's default paid holiday list (FR-15). The
+        reference preset is the India gazetted holiday list. Deployers
+        in other locales should replace or extend this list before going
+        live. \textit{Configurable without a software release.}
+    \item[BR-12 Absent Day Default Classification]
+        An absent working day with no admin leave marking defaults to
+        \textit{unpaid}. Admins may reclassify to paid or unpaid leave
+        (FR-17). \textit{Configurable.}
+    \item[BR-13 Wage Strategy and Rate]
+        Each worker has an individually configurable wage strategy
+        (\texttt{DAILY\_FIXED}, \texttt{MONTHLY\_DIVIDED},
+        \texttt{HOURLY}, or a custom strategy) and the corresponding
+        rate or salary figure. Currency is configurable per organisation;
+        default: INR. \textit{Configurable per worker.}
+    \item[BR-14 Clock-In Reminder Time]
+        Daily reminder notification time. Default: 09:00 local time.
+        \textit{Configurable per organisation} (FR-14).
+    \item[BR-15 Petty-Cash Edit Policy]
+        Workers may add expense (debit) entries only. Admins may add
+        credit or adjustment entries. No entry may be deleted by any
+        user; corrections are made via adjustment entries (FR-19).
+        \textit{Not overridable; this is a data integrity rule.}
+\end{description}
+
+\subsection{Deployment Requirements}
+
+\begin{enumerate}
+    \item The system SHALL be distributable as a set of Docker images
+          orchestrated by a \texttt{docker-compose.yml} in the repository
+          root. A deployer SHALL be able to bring up a fully functional
+          instance with a single command.
+    \item An \texttt{.env.example} file SHALL be provided listing all
+          required and optional environment variables with descriptions
+          and default values.
+    \item The system SHALL undergo a field trial on a minimum of 1 device
+          for 2--3 days before any production rollout.
+    \item Full rollout SHALL proceed only after the field trial produces
+          no critical defects.
+    \item An installation guide SHALL be provided for sideloading the APK
+          onto worker devices (Google Play distribution is not assumed).
+\end{enumerate}
+
+
+% -------------------------------------------------------
+% APPENDICES
+% -------------------------------------------------------
+\newpage
+\appendix
+
+\section{Glossary}
+\label{app:glossary}
+
+\begin{description}[leftmargin=4cm, style=nextline]
+    \item[API]
+        Application Programming Interface. The defined set of endpoints
+        through which the Android app and web dashboard communicate with
+        the backend server.
+    \item[APK]
+        Android Package Kit. The installation file format for Android
+        applications.
+    \item[Audit Log]
+        An immutable, chronological record of all privileged actions
+        performed by administrators, including attendance edits, leave
+        markings, petty-cash adjustments, and configuration changes.
+    \item[Clock-In]
+        The action of recording the start of a field worker's attendance
+        session, captured with GPS coordinates and a selfie photograph.
+    \item[Clock-Out]
+        The action of recording the end of a field worker's attendance
+        session.
+    \item[CrashReporter]
+        The interface through which the Android app reports unhandled
+        exceptions and diagnostics. Firebase Crashlytics is the default
+        implementation; it may be replaced or disabled via configuration.
+    \item[Daily Rate]
+        The configured gross wage amount earned by a worker for one full
+        paid day of attendance. Used by the \texttt{DAILY\_FIXED} wage
+        strategy. Currency is configurable per organisation.
+    \item[Deployer]
+        A technical operator who installs and maintains a self-hosted
+        Beacon instance on behalf of an organisation.
+    \item[FCM]
+        Firebase Cloud Messaging. Google's cross-platform push
+        notification service. The default \texttt{NotificationProvider}
+        implementation.
+    \item[Gazetted Holiday]
+        A public holiday officially notified in a government gazette.
+        The reference locale preset uses the Government of India gazette.
+    \item[Geofence]
+        A virtual geographic boundary defined by GPS coordinates (radius
+        or polygon) used to determine whether a worker is within an
+        acceptable work location.
+    \item[GPS Accuracy]
+        The estimated horizontal error radius (in metres) reported by
+        the device GPS receiver at the time of a location reading.
+        A lower value indicates a more precise fix.
+    \item[JWT]
+        JSON Web Token. A compact, URL-safe means of representing claims
+        between two parties, used here for API authentication.
+    \item[Locale Preset]
+        A named configuration bundle containing a default holiday list,
+        timezone, and currency for a specific deployment region.
+        The India preset is shipped with the system; others may be
+        contributed by the community.
+    \item[NotificationProvider]
+        The interface through which the backend dispatches push
+        notifications to worker devices. Firebase Cloud Messaging is
+        the default implementation.
+    \item[Offline-First]
+        An architectural pattern where all core application functions
+        operate without internet connectivity, with data synced to the
+        server when a connection becomes available.
+    \item[Paid Leave]
+        An absent working day explicitly marked by an administrator as
+        paid; the day counts toward the worker's wage calculation.
+    \item[Petty Cash]
+        A small fund disbursed to workers for incidental work-related
+        expenses. Managed via the petty-cash ledger feature.
+    \item[Required Work Duration]
+        The minimum number of hours per day configured by the
+        administrator that constitutes a full-attendance session.
+        Sessions shorter than this trigger a short-hours warning.
+    \item[Short-Hours Flag]
+        An indicator applied to an attendance record where the worker's
+        session duration was less than the configured required work
+        duration. Informational only; no automated penalty is applied.
+    \item[Sync]
+        The process of transmitting locally stored records (attendance,
+        petty-cash expenses, configuration updates) between the Android
+        device and the backend server.
+    \item[TLS]
+        Transport Layer Security. A cryptographic protocol providing
+        secure communication over a network.
+    \item[Unpaid Leave]
+        An absent working day classified (explicitly or by default) as
+        unpaid; the day is excluded from the worker's wage calculation.
+    \item[UTC]
+        Coordinated Universal Time. The primary time standard used for
+        all timestamps in the system.
+    \item[Wage Strategy]
+        A named algorithm used to calculate a worker's gross wages.
+        Built-in strategies: \texttt{DAILY\_FIXED},
+        \texttt{MONTHLY\_DIVIDED}, \texttt{HOURLY}. Custom strategies
+        may be registered by deployers.
+    \item[Weekly Off]
+        The day(s) of the week on which a worker is not expected to
+        attend. Configured per worker; defaults to Sunday.
+    \item[WorkManager]
+        An Android Jetpack library for scheduling deferrable background
+        tasks, used here for reliable sync and notification scheduling.
+\end{description}
+\newpage
+
+
+\section{Issues List}
+\label{app:issues}
+
+The following open questions are pending resolution. Items marked with
+$\star$ are particularly relevant to contributors picking up work on the
+affected feature.
+
+\begin{enumerate}
+    \item \textbf{Clock-Out Selfie:} Should the clock-out flow also
+          require a selfie photograph, or is GPS alone sufficient?
+    \item \textbf{Edit Permissions:} Should both managers and admins be
+          able to edit attendance records, or should this be restricted
+          to admins only?
+    \item $\star$ \textbf{Poor GPS Fallback:} What is the intended
+          behaviour when GPS accuracy is poor (e.g., 100~m error radius)
+          but the worker is visibly on-site? Options: (a) reject and
+          require retry, (b) allow with a flag, (c) allow manager
+          override remotely.
+    \item \textbf{Half-Day Marking:} Is half-day attendance marking
+          required in Version 1.0, or deferred to Phase 2? (See
+          contribution roadmap, \S1.4.)
+    \item \textbf{Camera Direction:} Should selfie capture use the front
+          camera (true selfie) or the rear camera (higher quality)?
+    \item \textbf{Offline Login Window:} What is the maximum acceptable
+          duration for cached offline login before re-authentication
+          is enforced?
+    \item \textbf{Wage Precision:} Should rates support sub-unit decimal
+          precision (e.g., paise for INR), or are whole-unit rates
+          sufficient?
+    \item \textbf{Wage Visibility on App:} Should the worker's wage
+          summary be visible at all times on the home screen, or only
+          on a dedicated earnings screen (privacy consideration)?
+    \item \textbf{Holiday List Maintenance:} Who is responsible for
+          updating the locale preset holiday list annually: the deploying
+          organisation, or will the system provide an automated update
+          mechanism?
+    \item \textbf{Multiple Weekly Off Days:} Can a worker have more than
+          one weekly off day (e.g., Saturday and Sunday)? Is a half-day
+          weekly off pattern required?
+    \item $\star$ \textbf{Petty-Cash Negative Balance:} Should the
+          system allow a worker's petty-cash balance to go negative
+          (i.e., can workers log expenses exceeding their current
+          balance)?
+    \item $\star$ \textbf{Petty-Cash Offline Expense:} If a worker adds
+          an expense offline and the balance would go negative upon sync,
+          how should the conflict be resolved?
+    \item \textbf{Reminder Notification Time:} Is per-organisation
+          configurability of reminder time sufficient, or should it also
+          be configurable per worker?
+    \item \textbf{Short-Hours Threshold Uniformity:} Is the required
+          work duration the same for all workers, or should it be
+          configurable per worker or per role?
+    \item $\star$ \textbf{Multiple Geofence Zones:} Should a worker be
+          permitted to clock in from any active geofence zone, or should
+          zone assignment be per-worker?
+    \item $\star$ \textbf{Alternative Notification Providers:}
+          Which providers (ntfy, Gotify, APNS, SMTP) should be
+          implemented for the v1.0 release, and which deferred to
+          community contributions?
+    \item \textbf{Custom Wage Strategies:} What interface (plugin
+          contract) should a deployer implement to register a custom
+          wage strategy? This needs a design decision before FR-13 is
+          implemented.
+\end{enumerate}
+
+\end{document}
