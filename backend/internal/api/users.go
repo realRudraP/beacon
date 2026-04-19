@@ -61,7 +61,7 @@ func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		if errors.Is(err, ErrUsernameTaken) || (errors.As(err, &pgErr) && pgErr.Code == "23505") {
 			s.writeAPIError(w, http.StatusConflict, APIError{
 				Code:    ErrCodeConflict,
 				Message: "username already taken",
@@ -86,30 +86,30 @@ func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func validateRegisterUserRequest(req registerUserRequest) map[string]string {
-	errors := make(map[string]string)
+	fieldErrs := make(map[string]string)
 
 	if strings.TrimSpace(req.Username) == "" {
-		errors["username"] = "is required"
+		fieldErrs["username"] = "is required"
 	} else if len(req.Username) < 3 {
-		errors["username"] = "must be at least 3 characters"
+		fieldErrs["username"] = "must be at least 3 characters"
 	}
 
 	if strings.TrimSpace(req.FullName) == "" {
-		errors["full_name"] = "is required"
+		fieldErrs["full_name"] = "is required"
 	}
 
 	if strings.TrimSpace(req.PhoneNumber) == "" {
-		errors["phone_number"] = "is required"
+		fieldErrs["phone_number"] = "is required"
 	} else if len(req.PhoneNumber) < 10 {
-		errors["phone_number"] = "must be at least 10 digits"
+		fieldErrs["phone_number"] = "must be at least 10 digits"
 	}
 
 	if strings.TrimSpace(req.Password) == "" {
-		errors["password"] = "is required"
+		fieldErrs["password"] = "is required"
 	} else if len(req.Password) < 6 {
-		errors["password"] = "must be at least 6 characters"
+		fieldErrs["password"] = "must be at least 6 characters"
 	}
 
-	return errors
+	return fieldErrs
 
 }

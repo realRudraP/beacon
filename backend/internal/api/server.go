@@ -1,6 +1,7 @@
 package api
 
 import (
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -25,6 +26,13 @@ func NewServer(cfg Config) *Server {
 	return &Server{
 		store:  store,
 		logger: cfg.Logger,
+	}
+}
+
+func NewTestServer(store Store) *Server {
+	return &Server{
+		store:  store,
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 }
 
