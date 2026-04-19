@@ -21,7 +21,7 @@ secret_detection:
 
 go-test:
   stage: test
-  image: golang:1.24-alpine
+  image: golang:1.25-alpine
   services:
     - postgres:17-alpine
   before_script:
