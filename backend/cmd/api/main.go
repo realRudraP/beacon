@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,10 +17,42 @@ import (
 func main() {
 	godotenv.Load()
 	ctx := context.Background()
+	deploymentEnv := os.Getenv("DEPLOYMENT_ENV")
+	if deploymentEnv == "" {
+		log.Fatal("DEPLOYMENT_ENV is not set")
+	}
+
+	if deploymentEnv != "production" && deploymentEnv != "development" {
+		log.Fatal("DEPLOYMENT_ENV must be either 'production' or 'development'")
+	}
+
 	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+	var logLevel slog.Level
+	var REFRESH_TOKEN_HASH_SECRET string
+	if deploymentEnv == "production" {
+		REFRESH_TOKEN_HASH_SECRET = os.Getenv("REFRESH_TOKEN_HASH_SECRET")
+		if REFRESH_TOKEN_HASH_SECRET == "" {
+			log.Fatal("REFRESH_TOKEN_HASH_SECRET is not set")
+			os.Exit(1)
+		}
+		logLevel = slog.LevelInfo
+	} else {
+		REFRESH_TOKEN_HASH_SECRET = os.Getenv("REFRESH_TOKEN_HASH_SECRET")
+		if REFRESH_TOKEN_HASH_SECRET == "" {
+			log.Print("REFRESH_TOKEN_HASH_SECRET is not set, using random value for development. Sessions might be invalidated on server restart.")
+			b := make([]byte, 32)
+			_, err := rand.Read(b)
+			REFRESH_TOKEN_HASH_SECRET = string(b)
+			if err != nil {
+				log.Fatal("Could not generate random value for REFRESH_TOKEN_HASH_SECRET", "error", err)
+				os.Exit(1)
+			}
+		}
+		logLevel = slog.LevelDebug
+	}
 	loggerConfig := slog.HandlerOptions{
 		AddSource: true,
-		Level:     slog.LevelDebug,
+		Level:     logLevel,
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &loggerConfig))
 	if err != nil {
@@ -37,6 +71,8 @@ func main() {
 	serverConfig := api.Config{
 		DB:     pool,
 		Logger: logger,
+
+		REFRESH_TOKEN_HASH_SECRET: REFRESH_TOKEN_HASH_SECRET,
 	}
 	server := api.NewServer(serverConfig)
 

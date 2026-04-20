@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"gitlab.com/realRudraP/beacon/backend/internal/token"
 )
 
@@ -18,7 +19,7 @@ func TestJWTMaker(t *testing.T) {
 	t.Run("valid token contains correct claims", func(t *testing.T) {
 		claims := token.Claims{
 			Username:  "alice",
-			UserId:    uuid.New(),
+			UserID:    generateUUID(),
 			TokenType: "access",
 			Role:      "worker",
 		}
@@ -38,7 +39,7 @@ func TestJWTMaker(t *testing.T) {
 	t.Run("expired token returns error", func(t *testing.T) {
 		claims := token.Claims{
 			Username:  "bob",
-			UserId:    uuid.New(),
+			UserID:    generateUUID(),
 			TokenType: "access",
 			Role:      "worker",
 		}
@@ -64,7 +65,7 @@ func TestJWTMaker(t *testing.T) {
 	t.Run("token with wrong secret returns error", func(t *testing.T) {
 		claims := token.Claims{
 			Username:  "charlie",
-			UserId:    uuid.New(),
+			UserID:    generateUUID(),
 			TokenType: "access",
 			Role:      "worker",
 		}
@@ -83,7 +84,7 @@ func TestJWTMaker(t *testing.T) {
 	t.Run("tampered token returns error", func(t *testing.T) {
 		claims := token.Claims{
 			Username:  "dave",
-			UserId:    uuid.New(),
+			UserID:    generateUUID(),
 			TokenType: "access",
 			Role:      "worker",
 		}
@@ -108,8 +109,8 @@ func assertClaimsEqual(t *testing.T, expected, actual *token.Claims) {
 	if expected.Username != actual.Username {
 		t.Errorf("expected username %s, got %s", expected.Username, actual.Username)
 	}
-	if expected.UserId != actual.UserId {
-		t.Errorf("expected user ID %s, got %s", expected.UserId, actual.UserId)
+	if expected.UserID != actual.UserID {
+		t.Errorf("expected user ID %s, got %s", expected.UserID, actual.UserID)
 	}
 	if expected.TokenType != actual.TokenType {
 		t.Errorf("expected token type %s, got %s", expected.TokenType, actual.TokenType)
@@ -117,4 +118,8 @@ func assertClaimsEqual(t *testing.T, expected, actual *token.Claims) {
 	if expected.Role != actual.Role {
 		t.Errorf("expected role %s, got %s", expected.Role, actual.Role)
 	}
+}
+
+func generateUUID() pgtype.UUID {
+	return pgtype.UUID{Bytes: uuid.New(), Valid: true}
 }

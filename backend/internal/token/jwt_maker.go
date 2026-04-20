@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 var (
@@ -22,10 +22,10 @@ type JWTMaker struct {
 }
 
 type jwtClaims struct {
-	Username  string    `json:"username"`
-	UserId    uuid.UUID `json:"user_id"`
-	TokenType string    `json:"token_type"`
-	Role      string    `json:"role"`
+	Username  string      `json:"username"`
+	UserId    pgtype.UUID `json:"user_id"`
+	TokenType string      `json:"token_type"`
+	Role      string      `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -36,7 +36,7 @@ func NewJWTMaker(secretKey string) *JWTMaker {
 func (m *JWTMaker) CreateToken(claims Claims, duration time.Duration) (string, error) {
 	internal := jwtClaims{
 		Username:  claims.Username,
-		UserId:    claims.UserId,
+		UserId:    claims.UserID,
 		TokenType: claims.TokenType,
 		Role:      claims.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -71,7 +71,7 @@ func (m *JWTMaker) VerifyToken(tokenStr string) (*Claims, error) {
 
 	return &Claims{
 		Username:  internal.Username,
-		UserId:    internal.UserId,
+		UserID:    internal.UserId,
 		TokenType: internal.TokenType,
 		Role:      internal.Role,
 	}, nil

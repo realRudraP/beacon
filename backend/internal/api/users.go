@@ -85,7 +85,7 @@ func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func validateRegisterUserRequest(req registerUserRequest) map[string]string {
+func validateRegisterUserRequest(req registerUserRequest) FieldError {
 	fieldErrs := make(map[string]string)
 
 	if strings.TrimSpace(req.Username) == "" {

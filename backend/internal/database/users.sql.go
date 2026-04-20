@@ -7,6 +7,8 @@ package database
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -48,6 +50,28 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, username, password_hash, role, full_name, phone_number, active, created_at, updated_at, last_login FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.PasswordHash,
+		&i.Role,
+		&i.FullName,
+		&i.PhoneNumber,
+		&i.Active,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastLogin,
+	)
+	return i, err
+}
+
 const getUserByUsername = `-- name: GetUserByUsername :one
 SELECT id, username, password_hash, role, full_name, phone_number, active, created_at, updated_at, last_login FROM users WHERE username = $1
 `
@@ -68,4 +92,15 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.LastLogin,
 	)
 	return i, err
+}
+
+const updateLastLogin = `-- name: UpdateLastLogin :exec
+UPDATE users
+SET last_login = now()
+WHERE id = $1
+`
+
+func (q *Queries) UpdateLastLogin(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, updateLastLogin, id)
+	return err
 }

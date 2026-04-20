@@ -8,22 +8,29 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"gitlab.com/realRudraP/beacon/backend/internal/api"
 	"gitlab.com/realRudraP/beacon/backend/internal/database"
+	"gitlab.com/realRudraP/beacon/backend/internal/token"
 )
 
 const (
 	registerUserPath = "/api/v1/users/register"
+	TEST_JWT_SECRET  = "12345678901234567890123456789012"
 )
 
 var _ api.Store = (*InMemoryStore)(nil)
 
 type InMemoryStore struct {
-	users map[string]database.User
+	users         map[string]database.User
+	refreshTokens map[string]database.RefreshToken
 }
 
 func NewInMemoryStore() *InMemoryStore {
-	return &InMemoryStore{users: make(map[string]database.User)}
+	return &InMemoryStore{
+		users:         make(map[string]database.User),
+		refreshTokens: make(map[string]database.RefreshToken),
+	}
 }
 
 func (s *InMemoryStore) CreateUser(ctx context.Context, params database.CreateUserParams) (database.User, error) {
@@ -48,10 +55,69 @@ func (s *InMemoryStore) GetUserByUsername(ctx context.Context, username string) 
 	return user, nil
 }
 
+func (s *InMemoryStore) GetUserByID(ctx context.Context, id pgtype.UUID) (database.User, error) {
+	for _, u := range s.users {
+		if u.ID.String() == id.String() {
+			return u, nil
+		}
+	}
+	return database.User{}, api.ErrUserNotFound
+}
+
+func (s *InMemoryStore) UpdateLastLogin(ctx context.Context, id pgtype.UUID) error {
+	// No op for testing. Only included to satisfy the Store interface.
+	return nil
+}
+
+func (s *InMemoryStore) CreateRefreshToken(ctx context.Context, arg database.CreateRefreshTokenParams) (database.RefreshToken, error) {
+	token := database.RefreshToken{
+		TokenHash: arg.TokenHash,
+		UserID:    arg.UserID,
+		ExpiresAt: arg.ExpiresAt,
+		Revoked:   false,
+	}
+	s.refreshTokens[arg.TokenHash] = token
+	return token, nil
+}
+
+func (s *InMemoryStore) GetRefreshToken(ctx context.Context, tokenHash string) (database.RefreshToken, error) {
+	token, exists := s.refreshTokens[tokenHash]
+	if !exists {
+		return database.RefreshToken{}, api.ErrTokenNotFound
+	}
+	return token, nil
+}
+
+func (s *InMemoryStore) RevokeRefreshToken(ctx context.Context, arg database.RevokeRefreshTokenParams) error {
+	token, exists := s.refreshTokens[arg.TokenHash]
+	if !exists {
+		return api.ErrTokenNotFound
+	}
+	token.Revoked = true
+	s.refreshTokens[arg.TokenHash] = token
+	return nil
+}
+
+func (s *InMemoryStore) RevokeAllUserRefreshTokens(ctx context.Context, arg database.RevokeAllUserRefreshTokensParams) error {
+	for hash, token := range s.refreshTokens {
+		if token.UserID == arg.UserID {
+			token.Revoked = true
+			s.refreshTokens[hash] = token
+		}
+	}
+	return nil
+}
+
+func (s *InMemoryStore) DeleteRefreshToken(ctx context.Context, tokenHash string) error {
+	delete(s.refreshTokens, tokenHash)
+	return nil
+}
+
 func newTestServer(t *testing.T) (*api.Server, *InMemoryStore) {
 	t.Helper()
 	store := NewInMemoryStore()
-	server := api.NewTestServer(store)
+	tokenMaker := token.NewJWTMaker(TEST_JWT_SECRET)
+	server := api.NewTestServer(store, tokenMaker)
 	return server, store
 }
 
@@ -66,6 +132,12 @@ func postJSON(t *testing.T, handler http.Handler, path string, body any) *httpte
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	return rr
+}
+func decodeJSON(t *testing.T, rr *httptest.ResponseRecorder, dst any) {
+	t.Helper()
+	if err := json.NewDecoder(rr.Body).Decode(dst); err != nil {
+		t.Fatalf("failed to decode response body: %v", err)
+	}
 }
 func TestRegisterUser(t *testing.T) {
 	server, _ := newTestServer(t)
