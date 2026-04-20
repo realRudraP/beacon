@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "beacon-api-tests",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
