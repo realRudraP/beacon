@@ -23,8 +23,9 @@ func TestLoginUser(t *testing.T) {
 
 	t.Run("valid credentials returns tokens", func(t *testing.T) {
 		rr := postJSON(t, handler, loginUserPath, map[string]string{
-			"username": "alice",
-			"password": "securepassword",
+			"username":    "alice",
+			"password":    "securepassword",
+			"device_info": "Alice's iPhone",
 		})
 		if rr.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
@@ -41,8 +42,9 @@ func TestLoginUser(t *testing.T) {
 
 	t.Run("wrong password returns 401", func(t *testing.T) {
 		rr := postJSON(t, handler, loginUserPath, map[string]string{
-			"username": "alice",
-			"password": "wrongpassword",
+			"username":    "alice",
+			"password":    "wrongpassword",
+			"device_info": "Alice's G15",
 		})
 		if rr.Code != http.StatusUnauthorized {
 			t.Fatalf("expected 401, got %d: %s", rr.Code, rr.Body.String())
@@ -51,8 +53,9 @@ func TestLoginUser(t *testing.T) {
 
 	t.Run("non-existent user returns 401", func(t *testing.T) {
 		rr := postJSON(t, handler, loginUserPath, map[string]string{
-			"username": "ghost",
-			"password": "doesntmatter",
+			"username":    "ghost",
+			"password":    "doesntmatter",
+			"device_info": "Unknown Device",
 		})
 		if rr.Code != http.StatusUnauthorized {
 			t.Fatalf("expected 401, got %d: %s", rr.Code, rr.Body.String())
