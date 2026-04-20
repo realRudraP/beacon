@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"gitlab.com/realRudraP/beacon/backend/internal/api"
+	"gitlab.com/realRudraP/beacon/backend/internal/token"
 )
 
 func main() {
@@ -29,15 +30,22 @@ func main() {
 	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
 	var logLevel slog.Level
 	var REFRESH_TOKEN_HASH_SECRET string
+	var JWT_MINT_SECRET string
 	if deploymentEnv == "production" {
 		REFRESH_TOKEN_HASH_SECRET = os.Getenv("REFRESH_TOKEN_HASH_SECRET")
+		JWT_MINT_SECRET = os.Getenv("JWT_MINT_SECRET")
 		if REFRESH_TOKEN_HASH_SECRET == "" {
 			log.Fatal("REFRESH_TOKEN_HASH_SECRET is not set")
+			os.Exit(1)
+		}
+		if JWT_MINT_SECRET == "" {
+			log.Fatal("JWT_MINT_SECRET is not set")
 			os.Exit(1)
 		}
 		logLevel = slog.LevelInfo
 	} else {
 		REFRESH_TOKEN_HASH_SECRET = os.Getenv("REFRESH_TOKEN_HASH_SECRET")
+		JWT_MINT_SECRET = os.Getenv("JWT_MINT_SECRET")
 		if REFRESH_TOKEN_HASH_SECRET == "" {
 			log.Print("REFRESH_TOKEN_HASH_SECRET is not set, using random value for development. Sessions might be invalidated on server restart.")
 			b := make([]byte, 32)
@@ -45,6 +53,16 @@ func main() {
 			REFRESH_TOKEN_HASH_SECRET = string(b)
 			if err != nil {
 				log.Fatal("Could not generate random value for REFRESH_TOKEN_HASH_SECRET", "error", err)
+				os.Exit(1)
+			}
+		}
+		if JWT_MINT_SECRET == "" {
+			log.Print("JWT_MINT_SECRET is not set, using random value for development. Sessions might be invalidated on server restart.")
+			b := make([]byte, 32)
+			_, err := rand.Read(b)
+			JWT_MINT_SECRET = string(b)
+			if err != nil {
+				log.Fatal("Could not generate random value for JWT_MINT_SECRET", "error", err)
 				os.Exit(1)
 			}
 		}
@@ -68,9 +86,11 @@ func main() {
 	}
 	logger.Info("Successfully connected to DB")
 
+	tokenMaker := token.NewJWTMaker(JWT_MINT_SECRET)
 	serverConfig := api.Config{
-		DB:     pool,
-		Logger: logger,
+		DB:         pool,
+		Logger:     logger,
+		TokenMaker: tokenMaker,
 
 		REFRESH_TOKEN_HASH_SECRET: REFRESH_TOKEN_HASH_SECRET,
 	}

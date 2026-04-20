@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -122,6 +123,10 @@ func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 
 	}
+	if err := s.store.UpdateLastLogin(r.Context(), user.ID); err != nil {
+		s.logger.Error("failed to update last login", "err", err, "user", user)
+		// Not returning error to avoid login failure due to last login update failure
+	}
 	s.writeJSON(w, http.StatusOK, loginUserResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -138,6 +143,9 @@ func validateLoginUserRequest(req loginUserRequest) FieldError {
 	}
 	if req.Password == "" {
 		fieldErrors["password"] = "password is required"
+	}
+	if req.DeviceInfo == "" {
+		fieldErrors["device_info"] = "device_info is required"
 	}
 	return fieldErrors
 }
@@ -161,5 +169,5 @@ func hashRefreshToken(token string, secret []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(h.Sum(nil)), nil
+	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 }
