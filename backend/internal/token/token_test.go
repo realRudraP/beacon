@@ -1,6 +1,7 @@
 package token_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -94,8 +95,16 @@ func TestJWTMaker(t *testing.T) {
 			t.Fatalf("failed to create token: %v", err)
 		}
 
-		// Tamper with the token by changing a character
-		tamperedToken := tokenStr[:len(tokenStr)-1] + "x"
+		parts := strings.Split(tokenStr, ".")
+		// flip the first character of the signature to tamper with the token
+		sig := []byte(parts[2])
+		if sig[0] == 'a' {
+			sig[0] = 'b'
+		} else {
+			sig[0] = 'a'
+		}
+		parts[2] = string(sig)
+		tamperedToken := strings.Join(parts, ".")
 
 		_, err = maker.VerifyToken(tamperedToken)
 		if err == nil {
