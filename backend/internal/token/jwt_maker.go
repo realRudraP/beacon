@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -43,6 +44,7 @@ func (m *JWTMaker) CreateToken(claims Claims, duration time.Duration) (string, e
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    JWT_ISSUER,
+			ID:        uuid.New().String(),
 		},
 	}
 

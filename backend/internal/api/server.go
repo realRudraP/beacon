@@ -61,6 +61,7 @@ func (s *Server) Routes() http.Handler {
 		})
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", s.LoginUser)
+			r.Post("/refresh", s.HandleRefreshToken)
 		})
 	})
 
