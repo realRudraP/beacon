@@ -27,6 +27,42 @@ type loginUserResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+func (s *Server) Authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			s.writeAPIError(w, http.StatusUnauthorized, APIError{
+				Code:    ErrUnauthorized,
+				Message: "missing authorization header",
+			})
+			return
+		}
+
+		tokenStr := extractTokenFromHeader(authHeader)
+		claims, err := s.tokenMaker.VerifyToken(tokenStr)
+		if err != nil {
+			s.writeAPIError(w, http.StatusUnauthorized, APIError{
+				Code:    ErrUnauthorized,
+				Message: "invalid token",
+			})
+			return
+		}
+
+		if claims.TokenType != token.ACCESS_TOKEN {
+			s.writeAPIError(w, http.StatusUnauthorized, APIError{
+				Code:    ErrUnauthorized,
+				Message: "invalid token type",
+			})
+			return
+		}
+
+		// Insert all claims as a single struct into the context for easy retrieval in handlers
+		ctx := context.WithValue(r.Context(), "authClaims", claims)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request) {
 	var req loginUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -283,6 +319,16 @@ func refreshTokenDurationForRole(role database.Role) time.Duration {
 }
 
 // -------------------HELPER FUNCTIONS-------------------
+func extractTokenFromHeader(authHeader string) string {
+	// Assuming the header is in the format "Bearer <token>"
+	// This function extracts the token part from the header
+	const prefix = "Bearer "
+	if len(authHeader) > len(prefix) && authHeader[:len(prefix)] == prefix {
+		return authHeader[len(prefix):]
+	}
+	return ""
+}
+
 func validateLoginUserRequest(req loginUserRequest) FieldError {
 
 	fieldErrors := make(FieldError)

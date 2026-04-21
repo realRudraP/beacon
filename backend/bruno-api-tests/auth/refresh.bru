@@ -1,0 +1,23 @@
+meta {
+  name: refresh
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{DOMAIN}}{{API_VERSION}}/auth/refresh
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "refresh_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFsaWNlIiwidXNlcl9pZCI6ImEzNDY4Yzk2LTA3YzktNGE3Ni04OGZlLWY1Y2U1OTUyMjE4NSIsInRva2VuX3R5cGUiOiJyZWZyZXNoIiwicm9sZSI6IndvcmtlciIsImlzcyI6ImJlYWNvbiIsImV4cCI6MTc4NDUyNDQyNCwiaWF0IjoxNzc2NzQ4NDI0LCJqdGkiOiJlYjA0MmRiMS05ODVlLTRjZTEtYjEzYS03ODk5ZGE5YzgwYTIifQ.EdrR8XKU7FB4qelmjEAhINfeUGkgQDiceLQR-FG8rFE",
+    "device_info":"iPhone"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

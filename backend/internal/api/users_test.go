@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"gitlab.com/realRudraP/beacon/backend/internal/api"
@@ -15,8 +16,9 @@ import (
 )
 
 const (
-	registerUserPath = "/api/v1/users/register"
-	TEST_JWT_SECRET  = "12345678901234567890123456789012"
+	registerUserPath   = "/api/v1/users/register"
+	getUserProfilePath = "/api/v1/users/me"
+	TEST_JWT_SECRET    = "12345678901234567890123456789012"
 )
 
 var _ api.Store = (*InMemoryStore)(nil)
@@ -24,12 +26,14 @@ var _ api.Store = (*InMemoryStore)(nil)
 type InMemoryStore struct {
 	users         map[string]database.User
 	refreshTokens map[string]database.RefreshToken
+	tokenMaker    token.Maker
 }
 
-func NewInMemoryStore() *InMemoryStore {
+func NewInMemoryStore(tokenMaker token.Maker) *InMemoryStore {
 	return &InMemoryStore{
 		users:         make(map[string]database.User),
 		refreshTokens: make(map[string]database.RefreshToken),
+		tokenMaker:    tokenMaker,
 	}
 }
 
@@ -113,10 +117,19 @@ func (s *InMemoryStore) DeleteRefreshToken(ctx context.Context, tokenHash string
 	return nil
 }
 
+func (s *InMemoryStore) GetUserID(username string) pgtype.UUID {
+	user, exists := s.users[username]
+	if !exists {
+		return pgtype.UUID{}
+	}
+	return user.ID
+}
+
 func newTestServer(t *testing.T) (*api.Server, *InMemoryStore) {
 	t.Helper()
-	store := NewInMemoryStore()
 	tokenMaker := token.NewJWTMaker(TEST_JWT_SECRET)
+
+	store := NewInMemoryStore(tokenMaker)
 	server := api.NewTestServer(store, tokenMaker)
 	return server, store
 }
@@ -203,6 +216,101 @@ func TestRegisterUser(t *testing.T) {
 		}
 		if _, ok := fields["password"]; !ok {
 			t.Fatal("expected password field error")
+		}
+	})
+}
+
+func TestGetUserProfile(t *testing.T) {
+	server, store := newTestServer(t)
+	handler := server.Routes()
+
+	// pre-register alice
+	postJSON(t, handler, registerUserPath, map[string]string{
+		"username":     "alice",
+		"full_name":    "Alice Smith",
+		"phone_number": "9999999999",
+		"password":     "securepassword",
+	})
+
+	// log in to get a real access token
+	rr := postJSON(t, handler, loginUserPath, map[string]string{
+		"username":    "alice",
+		"password":    "securepassword",
+		"device_info": "test device",
+	})
+	if rr.Code != http.StatusOK {
+		t.Fatalf("login failed: %s", rr.Body.String())
+	}
+	var loginResp map[string]any
+	decodeJSON(t, rr, &loginResp)
+	accessToken := loginResp["access_token"].(string)
+
+	t.Run("valid token returns profile", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, getUserProfilePath, nil)
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+		}
+		var resp map[string]any
+		decodeJSON(t, rr, &resp)
+		if resp["username"] != "alice" {
+			t.Fatalf("expected username alice, got %s", resp["username"])
+		}
+		if _, ok := resp["password_hash"]; ok {
+			t.Fatal("response must not contain password_hash")
+		}
+	})
+
+	t.Run("missing token returns 401", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, getUserProfilePath, nil)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Fatalf("expected 401, got %d", rr.Code)
+		}
+	})
+
+	t.Run("expired token returns 401", func(t *testing.T) {
+		expiredToken, err := store.tokenMaker.CreateToken(token.Claims{
+			Username:  "alice",
+			UserID:    store.GetUserID("alice"),
+			Role:      "worker",
+			TokenType: token.ACCESS_TOKEN,
+		}, -time.Minute)
+		if err != nil {
+			t.Fatalf("failed to create expired token: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodGet, getUserProfilePath, nil)
+		req.Header.Set("Authorization", "Bearer "+expiredToken)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Fatalf("expected 401, got %d", rr.Code)
+		}
+	})
+
+	t.Run("refresh token rejected as access token", func(t *testing.T) {
+		rr := postJSON(t, handler, loginUserPath, map[string]string{
+			"username":    "alice",
+			"password":    "securepassword",
+			"device_info": "test device",
+		})
+		var loginResp map[string]any
+		decodeJSON(t, rr, &loginResp)
+		refreshToken := loginResp["refresh_token"].(string)
+
+		req := httptest.NewRequest(http.MethodGet, getUserProfilePath, nil)
+		req.Header.Set("Authorization", "Bearer "+refreshToken)
+		rr = httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Fatalf("expected 401, got %d", rr.Code)
 		}
 	})
 }

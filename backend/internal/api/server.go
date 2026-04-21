@@ -58,6 +58,10 @@ func (s *Server) Routes() http.Handler {
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/users", func(r chi.Router) {
 			r.Post("/register", s.RegisterUser)
+			r.Group(func(r chi.Router) {
+				r.Use(s.Authenticate)
+				r.Get("/me", s.GetUserProfile)
+			})
 		})
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", s.LoginUser)

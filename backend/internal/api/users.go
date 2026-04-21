@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"gitlab.com/realRudraP/beacon/backend/internal/database"
+	"gitlab.com/realRudraP/beacon/backend/internal/token"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -22,6 +23,14 @@ type registerUserResponse struct {
 	Username    string `json:"username"`
 	FullName    string `json:"full_name"`
 	PhoneNumber string `json:"phone_number"`
+}
+
+type getUserProfileResponse struct {
+	Username    string `json:"username"`
+	FullName    string `json:"full_name"`
+	PhoneNumber string `json:"phone_number"`
+	Role        string `json:"role"`
+	Active      bool   `json:"active"`
 }
 
 func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +91,28 @@ func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		Username:    user.Username,
 		FullName:    user.FullName,
 		PhoneNumber: user.PhoneNumber,
+	})
+}
+
+func (s *Server) GetUserProfile(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value("authClaims").(*token.Claims)
+
+	user, err := s.store.GetUserByID(r.Context(), claims.UserID)
+	if err != nil {
+		s.logger.Error("failed to get user profile", "err", err)
+		s.writeAPIError(w, http.StatusInternalServerError, APIError{
+			Code:    ErrCodeInternalError,
+			Message: "something went wrong",
+		})
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, getUserProfileResponse{
+		Username:    user.Username,
+		FullName:    user.FullName,
+		PhoneNumber: user.PhoneNumber,
+		Role:        string(user.Role),
+		Active:      user.Active,
 	})
 }
 
