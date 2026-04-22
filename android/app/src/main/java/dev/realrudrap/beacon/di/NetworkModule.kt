@@ -5,7 +5,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.realrudrap.beacon.data.remote.AuthApiService
+import dev.realrudrap.beacon.data.remote.AuthInterceptor
 import dev.realrudrap.beacon.data.remote.TokenAuthenticator
+import dev.realrudrap.beacon.data.remote.UserApiService
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -20,9 +22,11 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
+        authInterceptor: AuthInterceptor,
         authenticator: TokenAuthenticator
     ): OkHttpClient{
         return OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
             .authenticator(authenticator)
             .build()
     }
@@ -44,5 +48,11 @@ object NetworkModule {
     @Singleton
     fun provideAuthApiService(retrofit: Retrofit) : AuthApiService{
         return retrofit.create(AuthApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideUserApiService(retrofit: Retrofit): UserApiService{
+        return retrofit.create(UserApiService::class.java)
     }
 }

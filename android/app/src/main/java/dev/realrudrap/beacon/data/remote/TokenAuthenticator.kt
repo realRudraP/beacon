@@ -15,7 +15,8 @@ import javax.inject.Inject
 class TokenAuthenticator @Inject constructor(
     private val tokenManager : TokenManager,
     private val authApiService: dagger.Lazy<AuthApiService>,
-    private val deviceInfoManager: DeviceInfoManager
+    private val deviceInfoManager: DeviceInfoManager,
+    private val authEventBus: AuthEventBus
 ) : Authenticator{
     // This is used to prevent the thundering herd problem
     // in which multiple threads may try to refresh the tokens
@@ -40,6 +41,7 @@ class TokenAuthenticator @Inject constructor(
                 // the user needs to be logged out.
                 if(response.priorResponse!=null){
                     tokenManager.clearTokens()
+                    authEventBus.emit(AuthEvent.Unauthorized)
                     return@runBlocking null
                 }
 
