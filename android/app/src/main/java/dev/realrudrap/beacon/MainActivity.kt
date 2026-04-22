@@ -3,6 +3,7 @@
 package dev.realrudrap.beacon
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,6 +17,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import dagger.hilt.android.AndroidEntryPoint
 import dev.realrudrap.beacon.ui.auth.LoginScreen
 import dev.realrudrap.beacon.ui.theme.BeaconTheme
+import timber.log.Timber
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -25,25 +27,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             BeaconTheme {
                 LoginScreen(onLoginSuccess = {
-                    println("Login successful")
+                    Timber.tag("MainActivity").d("Login successful")
                 })
             }
         }
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    BeaconTheme {
-        Greeting("Android")
-    }
-}
