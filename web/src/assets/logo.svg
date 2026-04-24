@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 860" fill="none" stroke="currentColor" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+
+  <!-- BASE -->
+  <rect x="60" y="780" width="380" height="62" rx="10" stroke="currentColor" stroke-width="28" fill="none"/>
+
+  <!-- TOWER LEGS (two outer angled supports) -->
+  <!-- Left leg: from base-left up to housing-bottom-left -->
+  <line x1="100" y1="780" x2="168" y2="430"/>
+  <!-- Right leg: from base-right up to housing-bottom-right -->
+  <line x1="400" y1="780" x2="332" y2="430"/>
+
+  <!-- INNER TOWER SHAFT (vertical, carries the ladder) -->
+  <!-- Left inner edge -->
+  <line x1="196" y1="430" x2="196" y2="780"/>
+  <!-- Right inner edge -->
+  <line x1="304" y1="430" x2="304" y2="780"/>
+
+  <!-- LADDER RUNGS (7 rungs evenly spaced inside shaft) -->
+  <line x1="196" y1="490" x2="304" y2="490"/>
+  <line x1="196" y1="550" x2="304" y2="550"/>
+  <line x1="196" y1="610" x2="304" y2="610"/>
+  <line x1="196" y1="670" x2="304" y2="670"/>
+  <line x1="196" y1="720" x2="304" y2="720"/>
+
+  <!-- LIGHT HOUSING BOX -->
+  <rect x="130" y="230" width="240" height="200" rx="14" stroke="currentColor" stroke-width="28" fill="none"/>
+
+  <!-- LENS / LIGHT (circle inside housing) -->
+  <circle cx="250" cy="330" r="58" stroke="currentColor" stroke-width="28" fill="none"/>
+  <!-- Inner pupil -->
+  <circle cx="250" cy="330" r="22" stroke="currentColor" stroke-width="20" fill="none"/>
+
+  <!-- ANGLED CORNER STRUTS connecting housing corners to tower top -->
+  <!-- Bottom-left housing corner → shaft top-left -->
+  <line x1="130" y1="430" x2="196" y2="430"/>
+  <!-- Bottom-right housing corner → shaft top-right -->
+  <line x1="370" y1="430" x2="304" y2="430"/>
+
+  <!-- DIAGONAL CORNER RAYS (4 diagonal beams at corners) -->
+  <!-- Top-left diagonal -->
+  <line x1="130" y1="230" x2="82" y2="182"/>
+  <!-- Top-right diagonal -->
+  <line x1="370" y1="230" x2="418" y2="182"/>
+  <!-- Bottom-left diagonal -->
+  <line x1="130" y1="430" x2="82" y2="478"/>
+  <!-- Bottom-right diagonal -->
+  <line x1="370" y1="430" x2="418" y2="478"/>
+
+  <!-- CARDINAL RAYS -->
+  <!-- Top ray (vertical) -->
+  <line x1="250" y1="230" x2="250" y2="150"/>
+  <!-- Left ray (horizontal) -->
+  <line x1="130" y1="330" x2="30" y2="330"/>
+  <!-- Right ray (horizontal) -->
+  <line x1="370" y1="330" x2="470" y2="330"/>
+
+</svg>
