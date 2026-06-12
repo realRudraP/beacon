@@ -25,3 +25,14 @@ func (s *Server) writeAPIError(w http.ResponseWriter, statusCode int, err APIErr
 func convertByteArrayToBase64String(b []byte) string {
 	return base64.StdEncoding.EncodeToString(b)
 }
+
+func ParseRole(roleStr string) Role {
+	switch roleStr {
+	case "superadmin":
+		return RoleSuperAdmin
+	case "admin":
+		return RoleAdmin
+	default:
+		return RoleWorker
+	}
+}

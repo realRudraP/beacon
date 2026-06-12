@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "367795116713",
+    "project_id": "beacon-oss",
+    "storage_bucket": "beacon-oss.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:367795116713:android:fabe0e3868042585ca67b8",
+        "android_client_info": {
+          "package_name": "dev.realrudrap.beacon"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyClgPXDwwOD1ZnEWn_rXrpsPv-i_iQW3RU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

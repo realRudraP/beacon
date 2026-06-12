@@ -1,2 +1,6 @@
 .env
 .zed/
+config.yaml
+
+!config.yaml.example
+!.env.example

@@ -1,8 +1,10 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { UserMenu } from "./UserMenu.";
+import { UserMenu } from "./UserMenu";
+import { useSystemState } from "@/context/ConfigContext";
 
 export default function Dashboard() {
+  const config = useSystemState();
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -10,7 +12,12 @@ export default function Dashboard() {
 
         <main className="flex-1 p-6">
           <div className="flex items-center justify-between border-b pb-3 mb-4">
-            <SidebarTrigger />
+            <div className="flex items-center gap-4">
+              <SidebarTrigger />
+              <span className="font-semibold text-lg tracking-tight">
+                {config.branding.business_name}
+              </span>
+            </div>
             <UserMenu />
           </div>
 
