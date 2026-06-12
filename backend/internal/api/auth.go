@@ -107,7 +107,7 @@ func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	refreshTokenHash, err := HMACSHA256(refreshToken, []byte(s.REFRESH_TOKEN_HASH_SECRET))
+	refreshTokenHash, err := HMACSHA256(refreshToken, []byte(s.EnvConfig.Token.RefreshTokenHashSecret))
 	if err != nil {
 		s.logger.Error("failed to hash refresh token", "err", err)
 		s.writeAPIError(w, http.StatusInternalServerError, APIError{
@@ -173,7 +173,7 @@ func (s *Server) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	refreshTokenHash, err := HMACSHA256(req.RefreshToken, []byte(s.REFRESH_TOKEN_HASH_SECRET))
+	refreshTokenHash, err := HMACSHA256(req.RefreshToken, []byte(s.EnvConfig.Token.RefreshTokenHashSecret))
 	if err != nil {
 		s.logger.Error("failed to hash refresh token", "err", err)
 		s.writeAPIError(w, http.StatusInternalServerError, APIError{
@@ -310,9 +310,9 @@ func revokeRefreshToken(ctx context.Context, refreshTokenHash []byte, store Stor
 
 func refreshTokenDurationForRole(role database.Role) time.Duration {
 	switch role {
-	case database.RoleAdmin:
+	case database.RoleAdmin, database.RoleSuperadmin:
 		return token.ADMIN_REFRESH_TOKEN_DURATION
-	case database.RoleManager, database.RoleWorker:
+	case database.RoleWorker:
 		return token.REFRESH_TOKEN_DURATION
 	}
 	return token.REFRESH_TOKEN_DURATION

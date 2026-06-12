@@ -9,10 +9,14 @@ import (
 
 type Store interface {
 	//users
+	CreateSuperAdmin(ctx context.Context, arg database.CreateSuperAdminParams) (database.User, error)
 	CreateUser(ctx context.Context, arg database.CreateUserParams) (database.User, error)
 	GetUserByUsername(ctx context.Context, username string) (database.User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (database.User, error)
 	UpdateLastLogin(ctx context.Context, id pgtype.UUID) error
+	CheckSetupRequired(ctx context.Context) (bool, error)
+	GetAllUsers(ctx context.Context) ([]database.User, error)
+	UpdateUser(ctx context.Context, arg database.UpdateUserParams) (database.User, error)
 
 	//refresh tokens
 	CreateRefreshToken(ctx context.Context, arg database.CreateRefreshTokenParams) (database.RefreshToken, error)
@@ -20,4 +24,5 @@ type Store interface {
 	RevokeRefreshToken(ctx context.Context, arg database.RevokeRefreshTokenParams) error
 	RevokeAllUserRefreshTokens(ctx context.Context, arg database.RevokeAllUserRefreshTokensParams) error
 	DeleteRefreshToken(ctx context.Context, tokenHash string) error
+	CreateVerificationToken(ctx context.Context, arg database.CreateVerificationTokenParams) (database.VerificationToken, error)
 }

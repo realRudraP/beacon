@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
+	"errors"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -10,103 +13,88 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 	"gitlab.com/realRudraP/beacon/backend/internal/api"
+	"gitlab.com/realRudraP/beacon/backend/internal/config"
 	"gitlab.com/realRudraP/beacon/backend/internal/token"
 )
 
 func main() {
-	godotenv.Load()
 	ctx := context.Background()
-	deploymentEnv := os.Getenv("DEPLOYMENT_ENV")
-	if deploymentEnv == "" {
-		log.Fatal("DEPLOYMENT_ENV is not set")
+
+	envCfg, err := config.LoadEnvConfig()
+	if err != nil {
+		log.Fatalf("failed to load env config: %v", err)
 	}
 
-	if deploymentEnv != "production" && deploymentEnv != "development" {
-		log.Fatal("DEPLOYMENT_ENV must be either 'production' or 'development'")
-	}
-
-	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
-	var logLevel slog.Level
-	var REFRESH_TOKEN_HASH_SECRET string
-	var JWT_MINT_SECRET string
-	if deploymentEnv == "production" {
-		REFRESH_TOKEN_HASH_SECRET = os.Getenv("REFRESH_TOKEN_HASH_SECRET")
-		JWT_MINT_SECRET = os.Getenv("JWT_MINT_SECRET")
-		if REFRESH_TOKEN_HASH_SECRET == "" {
-			log.Fatal("REFRESH_TOKEN_HASH_SECRET is not set")
-			os.Exit(1)
-		}
-		if JWT_MINT_SECRET == "" {
-			log.Fatal("JWT_MINT_SECRET is not set")
-			os.Exit(1)
-		}
-		logLevel = slog.LevelInfo
-	} else {
-		REFRESH_TOKEN_HASH_SECRET = os.Getenv("REFRESH_TOKEN_HASH_SECRET")
-		JWT_MINT_SECRET = os.Getenv("JWT_MINT_SECRET")
-		if REFRESH_TOKEN_HASH_SECRET == "" {
-			log.Print("REFRESH_TOKEN_HASH_SECRET is not set, using random value for development. Sessions might be invalidated on server restart.")
-			b := make([]byte, 32)
-			_, err := rand.Read(b)
-			REFRESH_TOKEN_HASH_SECRET = string(b)
-			if err != nil {
-				log.Fatal("Could not generate random value for REFRESH_TOKEN_HASH_SECRET", "error", err)
-				os.Exit(1)
-			}
-		}
-		if JWT_MINT_SECRET == "" {
-			log.Print("JWT_MINT_SECRET is not set, using random value for development. Sessions might be invalidated on server restart.")
-			b := make([]byte, 32)
-			_, err := rand.Read(b)
-			JWT_MINT_SECRET = string(b)
-			if err != nil {
-				log.Fatal("Could not generate random value for JWT_MINT_SECRET", "error", err)
-				os.Exit(1)
-			}
-		}
+	logLevel := slog.LevelInfo
+	if envCfg.Infra.DeploymentEnv == "development" {
 		logLevel = slog.LevelDebug
 	}
-	loggerConfig := slog.HandlerOptions{
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
 		Level:     logLevel,
+	}))
+
+	if envCfg.Infra.DeploymentEnv == "development" {
+		if envCfg.Token.JWTMintSecretToken == "" {
+			logger.Warn("JWT_MINT_SECRET not set, using random value — sessions will invalidate on restart")
+			envCfg.Token.JWTMintSecretToken = randomSecret()
+		}
+		if envCfg.Token.RefreshTokenHashSecret == "" {
+			logger.Warn("REFRESH_TOKEN_HASH_SECRET not set, using random value — sessions will invalidate on restart")
+			envCfg.Token.RefreshTokenHashSecret = randomSecret()
+		}
 	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &loggerConfig))
+
+	pool, err := pgxpool.New(ctx, envCfg.DB.DSN())
 	if err != nil {
-		logger.Error("Could not connect to DB", "error", err)
+		logger.Error("could not connect to DB", "error", err)
 		os.Exit(1)
 	}
 	defer pool.Close()
 
-	err = pool.Ping(ctx)
-	if err != nil {
-		logger.Error("Could not ping DB", "error", err)
+	if err := pool.Ping(ctx); err != nil {
+		logger.Error("could not ping DB", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("Successfully connected to DB")
+	logger.Info("successfully connected to DB")
 
-	tokenMaker := token.NewJWTMaker(JWT_MINT_SECRET)
-	serverConfig := api.Config{
+	appCfg, err := config.Load("config.yaml")
+	if err != nil {
+		logger.Error("could not load app config", "error", err)
+		os.Exit(1)
+	}
+
+	tokenMaker := token.NewJWTMaker(envCfg.Token.JWTMintSecretToken)
+
+	server := api.NewServer(api.Config{
 		DB:         pool,
 		Logger:     logger,
 		TokenMaker: tokenMaker,
-
-		REFRESH_TOKEN_HASH_SECRET: REFRESH_TOKEN_HASH_SECRET,
-	}
-	server := api.NewServer(serverConfig)
+		AppConfig:  appCfg,
+		EnvConfig:  envCfg,
+	})
 
 	httpServer := &http.Server{
-		Addr:         ":8080",
+		Addr:         fmt.Sprintf(":%d", envCfg.Infra.Port),
 		Handler:      server.Routes(),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	logger.Info("Starting server on :8080")
-	if err := httpServer.ListenAndServe(); err != nil {
-		logger.Error("error in starting server", "err", err)
+	logger.Info("starting server", "port", envCfg.Infra.Port, "env", envCfg.Infra.DeploymentEnv)
+	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Error("server error", "error", err)
 		os.Exit(1)
 	}
+}
+
+func randomSecret() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		log.Fatalf("could not generate random secret: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(b)
 }

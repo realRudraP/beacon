@@ -1,0 +1,29 @@
+# --------------------------------
+# INFRASTRUCTURE AND NETWORK CONFIGURATION
+# --------------------------------
+
+app:
+  # The domain over which the system is hosted
+  # Set to localhost for development, and to the actual domain for production
+  domain: "localhost"
+  # The environment in which the system is running. Can be either "development" or "production". Affects logging and error handling.
+  environment: "development"
+  # The port on which the Go application will listen (Docker internal)
+  port: 8080
+
+# --------------------------------
+# BRANDING & UI
+# --------------------------------
+branding:
+  # Name of the business running the tool. Will change the branding of the tool.
+  # Leave as is for development, change to your business name for production
+  business_name: "Beacon Labs"
+  # The URL of the logo to be displayed in the UI. Can be a local path or a URL. Leave as is for development, change to your logo URL for production.
+  logo_url: "/assets/logo.png"
+
+# --------------------------------
+# BUSINESS LOGIC & FEATURES
+# --------------------------------
+features:
+  # The number of days after which attendance photos will be automatically deleted from the system. Set to 0 to disable automatic deletion.
+  auto_delete_attendance_photos_days: 30
