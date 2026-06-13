@@ -10,6 +10,7 @@ import { useSystemState } from "./context/ConfigContext";
 import Unauthorized from "./pages/Unauthorized";
 import UsersPage from "./pages/UsersPage";
 import NotFound from "./pages/NotFound";
+import GeofenceEditor from "./pages/Geofences";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { accessToken } = useAuthStore();
@@ -46,6 +47,7 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
               <Route path="/not-found" element={<NotFound />} />
+              <Route path="/geofences" element={<GeofenceEditor />} />
               <Route
                 path="/dashboard"
                 element={

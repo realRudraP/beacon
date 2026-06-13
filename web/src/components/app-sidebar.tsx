@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sidebar";
 
 import { Link } from "react-router-dom";
-import { Home, Users, Settings } from "lucide-react";
+import { Home, Users, Settings, MapPin } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
 import Logo from "@/assets/logo.svg?react";
@@ -45,6 +45,15 @@ export function AppSidebar() {
                 <Link to="/users">
                   <Users className="mr-2 h-4 w-4" />
                   Users
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={isActive("/geofences")}>
+                <Link to="/geofences">
+                  <MapPin className="mr-2 h-4 w-4" />
+                  Geofences
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
