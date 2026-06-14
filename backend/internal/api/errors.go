@@ -19,6 +19,7 @@ const (
 	ErrCodeConflict         = "CONFLICT"
 	ErrUnauthorized         = "UNAUTHORIZED"
 	ErrCodeResourceNotFound = "RESOURCE_NOT_FOUND"
+	ErrCodeForbidden        = "FORBIDDEN"
 )
 
 var (

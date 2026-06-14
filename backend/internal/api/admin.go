@@ -37,6 +37,14 @@ type registerUserResponse struct {
 	Role        string `json:"role"`
 }
 
+type editUserRequest struct {
+	FullName    *string `json:"full_name,omitempty"`
+	Email       *string `json:"email,omitempty"`
+	Role        *string `json:"role,omitempty"`
+	PhoneNumber *string `json:"phone_number,omitempty"`
+	Password    *string `json:"password,omitempty"`
+}
+
 func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	var req registerUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -122,7 +130,8 @@ func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) EditUser(w http.ResponseWriter, r *http.Request) {
 	username := chi.URLParam(r, "username")
-	var req registerUserRequest
+
+	var req editUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.writeAPIError(w, http.StatusBadRequest, APIError{
 			Code:    ErrCodeInvalidRequest,
@@ -141,7 +150,6 @@ func (s *Server) EditUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := r.Context().Value("authClaims").(*token.Claims)
-
 	if ParseRole(claims.Role) < RoleAdmin {
 		s.writeAPIError(w, http.StatusForbidden, APIError{
 			Code:    ErrUnauthorized,
@@ -149,6 +157,7 @@ func (s *Server) EditUser(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	userToChange, err := s.store.GetUserByUsername(r.Context(), username)
 	if err != nil {
 		s.writeAPIError(w, http.StatusNotFound, APIError{
@@ -157,17 +166,11 @@ func (s *Server) EditUser(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if ParseRole(string(userToChange.Role)) >= ParseRole(claims.Role) {
-		s.logger.Warn("user role change request denied due to insufficient permissions", "requester", claims.Username, "requester_role", claims.Role, "target_user_role", userToChange.Role)
-		s.writeAPIError(w, http.StatusForbidden, APIError{
-			Code:    ErrUnauthorized,
-			Message: "you are not allowed to perform this operation",
-		})
-		return
-	}
-	requestedRole := ParseRole(req.Role)
-	if requestedRole >= ParseRole(claims.Role) {
-		s.logger.Warn("user role change request denied due to insufficient permissions", "requester", claims.Username, "requester_role", claims.Role, "requested_role", req.Role)
+
+	if ParseRole(claims.Role) != RoleSuperAdmin && ParseRole(string(userToChange.Role)) >= ParseRole(claims.Role) {
+		s.logger.Warn("user edit request denied due to insufficient permissions",
+			"requester", claims.Username, "requester_role", claims.Role,
+			"target_user", userToChange.Username, "target_user_role", userToChange.Role)
 		s.writeAPIError(w, http.StatusForbidden, APIError{
 			Code:    ErrUnauthorized,
 			Message: "you are not allowed to perform this operation",
@@ -175,14 +178,74 @@ func (s *Server) EditUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated_user, err := s.store.UpdateUser(r.Context(), database.UpdateUserParams{
-		Username:    req.Username,
-		FullName:    req.FullName,
-		PhoneNumber: convertStringToPGText(req.PhoneNumber),
-		Email:       convertStringToPGText(req.Email),
-		Role:        convertRoleStringToDBRole(req.Role),
-		Active:      true,
-	})
+	newFullName := userToChange.FullName
+	newEmail := userToChange.Email.String
+	newPhone := userToChange.PhoneNumber.String
+	newRole := userToChange.Role
+
+	if req.FullName != nil {
+		newFullName = *req.FullName
+	}
+	if req.Email != nil {
+		newEmail = *req.Email
+	}
+	if req.PhoneNumber != nil {
+		newPhone = *req.PhoneNumber
+	}
+
+	if req.Role != nil {
+		requestedRole := ParseRole(*req.Role)
+
+		if requestedRole > ParseRole(claims.Role) {
+			s.logger.Warn("user role change request denied due to insufficient permissions",
+				"requester", claims.Username, "requester_role", claims.Role,
+				"requested_role", *req.Role)
+			s.writeAPIError(w, http.StatusForbidden, APIError{
+				Code:    ErrUnauthorized,
+				Message: "you are not allowed to perform this operation",
+			})
+			return
+		}
+
+		// A superadmin cannot demote themselves.
+		if claims.Username == userToChange.Username &&
+			ParseRole(claims.Role) == RoleSuperAdmin &&
+			requestedRole < RoleSuperAdmin {
+			s.logger.Warn("superadmin attempted to change their own role",
+				"requester", claims.Username, "requested_role", *req.Role)
+			s.writeAPIError(w, http.StatusForbidden, APIError{
+				Code:    ErrUnauthorized,
+				Message: "you cannot change your own role",
+			})
+			return
+		}
+
+		newRole = convertRoleStringToDBRole(*req.Role)
+	}
+
+	updateParams := database.UpdateUserParams{
+		Username:    username,
+		FullName:    newFullName,
+		PhoneNumber: convertStringToPGText(newPhone),
+		Email:       convertStringToPGText(newEmail),
+		Role:        newRole,
+		Active:      userToChange.Active,
+	}
+
+	if req.Password != nil && *req.Password != "" {
+		hashed, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			s.logger.Error("failed to hash password", "err", err)
+			s.writeAPIError(w, http.StatusInternalServerError, APIError{
+				Code:    ErrCodeInternalError,
+				Message: "something went wrong",
+			})
+			return
+		}
+		updateParams.PasswordHash = string(hashed)
+	}
+
+	updatedUser, err := s.store.UpdateUser(r.Context(), updateParams)
 	if err != nil {
 		s.logger.Error("failed to update user", "err", err)
 		s.writeAPIError(w, http.StatusInternalServerError, APIError{
@@ -193,12 +256,11 @@ func (s *Server) EditUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.writeJSON(w, http.StatusOK, registerUserResponse{
-		Username:    updated_user.Username,
-		FullName:    updated_user.FullName,
-		PhoneNumber: updated_user.PhoneNumber.String,
-		Role:        string(updated_user.Role),
+		Username:    updatedUser.Username,
+		FullName:    updatedUser.FullName,
+		PhoneNumber: updatedUser.PhoneNumber.String,
+		Role:        string(updatedUser.Role),
 	})
-
 }
 
 func (s *Server) softDeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -219,6 +281,17 @@ func (s *Server) softDeleteUser(w http.ResponseWriter, r *http.Request) {
 		s.writeAPIError(w, http.StatusNotFound, APIError{
 			Code:    ErrUserNotFound.Error(),
 			Message: "user not found",
+		})
+		return
+	}
+
+	if ParseRole(string(userToDelete.Role)) == RoleSuperAdmin {
+		s.logger.Warn("attempt to delete a superadmin account denied",
+			"requester", claims.Username, "requester_role", claims.Role,
+			"target_user", userToDelete.Username)
+		s.writeAPIError(w, http.StatusForbidden, APIError{
+			Code:    ErrUnauthorized,
+			Message: "superadmin accounts cannot be deleted",
 		})
 		return
 	}
@@ -254,53 +327,62 @@ func (s *Server) softDeleteUser(w http.ResponseWriter, r *http.Request) {
 	})
 
 }
-func validateEditUserRequest(req registerUserRequest) FieldError {
-	fieldErrs := make(map[string]string)
 
-	if strings.TrimSpace(req.FullName) == "" {
-		fieldErrs["full_name"] = "is required"
+func validateEditUserRequest(req editUserRequest) map[string]string {
+	fieldErrors := map[string]string{}
+
+	if req.FullName != nil && strings.TrimSpace(*req.FullName) == "" {
+		fieldErrors["full_name"] = "full name cannot be empty"
 	}
 
-	if strings.TrimSpace(req.PhoneNumber) == "" {
-		fieldErrs["phone_number"] = "is required"
-	} else if len(req.PhoneNumber) < 10 {
-		fieldErrs["phone_number"] = "must be at least 10 digits"
+	if req.Email != nil {
+		if strings.TrimSpace(*req.Email) == "" {
+			fieldErrors["email"] = "email cannot be empty"
+		} else if !isValidEmail(*req.Email) {
+			fieldErrors["email"] = "invalid email address"
+		}
+	}
+	if req.PhoneNumber != nil && *req.PhoneNumber != "" && !isValidPhoneNumber(*req.PhoneNumber) {
+		fieldErrors["phone_number"] = "invalid phone number"
+	}
+	if req.Role != nil && !isValidRole(*req.Role) {
+		fieldErrors["role"] = "invalid role"
+	}
+	if req.Password != nil && *req.Password != "" && len(*req.Password) < 8 {
+		fieldErrors["password"] = "password must be at least 8 characters long"
 	}
 
-	if strings.TrimSpace(req.Role) == "" {
-		fieldErrs["role"] = "is required"
-	}
-	return fieldErrs
+	return fieldErrors
 }
 
-func validateRegisterUserRequest(req registerUserRequest) FieldError {
-	fieldErrs := make(map[string]string)
-
-	if strings.TrimSpace(req.Username) == "" {
-		fieldErrs["username"] = "is required"
-	} else if len(req.Username) < 3 {
-		fieldErrs["username"] = "must be at least 3 characters"
-	}
+func validateRegisterUserRequest(req registerUserRequest) map[string]string {
+	fieldErrors := map[string]string{}
 
 	if strings.TrimSpace(req.FullName) == "" {
-		fieldErrs["full_name"] = "is required"
+		fieldErrors["full_name"] = "full name is required"
 	}
 
-	if strings.TrimSpace(req.PhoneNumber) == "" {
-		fieldErrs["phone_number"] = "is required"
-	} else if len(req.PhoneNumber) < 10 {
-		fieldErrs["phone_number"] = "must be at least 10 digits"
+	if strings.TrimSpace(req.Username) == "" {
+		fieldErrors["username"] = "username is required"
 	}
 
-	if strings.TrimSpace(req.Password) == "" {
-		fieldErrs["password"] = "is required"
-	} else if len(req.Password) < 6 {
-		fieldErrs["password"] = "must be at least 6 characters"
+	if strings.TrimSpace(req.Email) == "" {
+		fieldErrors["email"] = "email is required"
+	} else if !isValidEmail(req.Email) {
+		fieldErrors["email"] = "invalid email address"
 	}
 
-	if strings.TrimSpace(req.Role) == "" {
-		fieldErrs["role"] = "is required"
+	if req.PhoneNumber != "" && !isValidPhoneNumber(req.PhoneNumber) {
+		fieldErrors["phone_number"] = "invalid phone number"
 	}
 
-	return fieldErrs
+	if !isValidRole(req.Role) {
+		fieldErrors["role"] = "invalid role"
+	}
+
+	if len(req.Password) < 8 {
+		fieldErrors["password"] = "password must be at least 8 characters long"
+	}
+
+	return fieldErrors
 }

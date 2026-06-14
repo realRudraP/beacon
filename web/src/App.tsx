@@ -11,6 +11,7 @@ import Unauthorized from "./pages/Unauthorized";
 import UsersPage from "./pages/UsersPage";
 import NotFound from "./pages/NotFound";
 import GeofenceEditor from "./pages/Geofences";
+import SettingsPage from "./pages/Settings";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { accessToken } = useAuthStore();
@@ -44,10 +45,27 @@ export default function App() {
             </>
           ) : (
             <>
+              <Route
+                path="/"
+                element={
+                  accessToken ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                }
+              />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
               <Route path="/not-found" element={<NotFound />} />
-              <Route path="/geofences" element={<GeofenceEditor />} />
+              <Route
+                path="/geofences"
+                element={
+                  <AdminRoute>
+                    <GeofenceEditor />
+                  </AdminRoute>
+                }
+              />
               <Route
                 path="/dashboard"
                 element={
@@ -61,6 +79,14 @@ export default function App() {
                 element={
                   <AdminRoute>
                     <UsersPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <AdminRoute>
+                    <SettingsPage />
                   </AdminRoute>
                 }
               />

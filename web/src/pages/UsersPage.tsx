@@ -13,6 +13,7 @@ import {
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { UserMenu } from "./UserMenu";
+import { useUserStore } from "@/store/userStore";
 import { useSystemState } from "@/context/ConfigContext";
 import api from "@/api/axiosClient";
 
@@ -162,6 +163,7 @@ function UserAvatar({ name }: { name: string }) {
 
 export default function UsersPage() {
   const config = useSystemState();
+  const { user } = useUserStore();
 
   // ----- data state -----
   const [users, setUsers] = useState<User[]>([]);
@@ -381,7 +383,9 @@ export default function UsersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All roles</SelectItem>
-                <SelectItem value="superadmin">Super Admin</SelectItem>
+                {user?.role === "superadmin" && (
+                  <SelectItem value="superadmin">Super Admin</SelectItem>
+                )}
                 <SelectItem value="admin">Admin</SelectItem>
                 <SelectItem value="worker">Worker</SelectItem>
               </SelectContent>
@@ -571,6 +575,7 @@ export default function UsersPage() {
                   placeholder="ramsharma"
                   value={formData.username}
                   onChange={handleFormChange}
+                  disabled={!!editingUser}
                 />
               </div>
 
@@ -586,6 +591,7 @@ export default function UsersPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="superadmin">Super Admin</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="worker">Worker</SelectItem>
                   </SelectContent>

@@ -5,7 +5,7 @@ CREATE TYPE role AS ENUM ('worker', 'admin', 'superadmin');
 CREATE TYPE token_type AS ENUM ('otp', 'magic_link','password_reset');
 
 CREATE TABLE users (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     username      TEXT        UNIQUE NOT NULL,
     password_hash TEXT        NOT NULL,
     role          role        NOT NULL DEFAULT 'worker',
@@ -20,7 +20,7 @@ CREATE TABLE users (
 
 CREATE TABLE refresh_tokens (
     token_hash     TEXT        PRIMARY KEY,
-    user_id        UUID        REFERENCES users(id) ON DELETE CASCADE,
+    user_id        UUID        REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     device_info    TEXT,
     expires_at     timestamptz NOT NULL,
     created_at     timestamptz NOT NULL DEFAULT now(),

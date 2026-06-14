@@ -8,6 +8,7 @@ package database
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -30,7 +31,7 @@ INSERT INTO users(
     VALUES (
         $1, $2, $3, $4, 'superadmin'
     )
-RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login
+RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days
 `
 
 type CreateSuperAdminParams struct {
@@ -60,6 +61,7 @@ func (q *Queries) CreateSuperAdmin(ctx context.Context, arg CreateSuperAdminPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastLogin,
+		&i.WeeklyOffDays,
 	)
 	return i, err
 }
@@ -70,7 +72,7 @@ INSERT INTO users(
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
-RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login
+RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days
 `
 
 type CreateUserParams struct {
@@ -104,12 +106,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastLogin,
+		&i.WeeklyOffDays,
 	)
 	return i, err
 }
 
 const getAllUsers = `-- name: GetAllUsers :many
-SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login FROM users
+SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days FROM users WHERE active=true ORDER BY created_at DESC
 `
 
 func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
@@ -133,6 +136,7 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.LastLogin,
+			&i.WeeklyOffDays,
 		); err != nil {
 			return nil, err
 		}
@@ -145,10 +149,10 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login FROM users WHERE id = $1
+SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days FROM users WHERE id = $1
 `
 
-func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
@@ -163,12 +167,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastLogin,
+		&i.WeeklyOffDays,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login FROM users WHERE username = $1
+SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days FROM users WHERE username = $1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
@@ -186,6 +191,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastLogin,
+		&i.WeeklyOffDays,
 	)
 	return i, err
 }
@@ -196,24 +202,25 @@ SET last_login = now()
 WHERE id = $1
 `
 
-func (q *Queries) UpdateLastLogin(ctx context.Context, id pgtype.UUID) error {
+func (q *Queries) UpdateLastLogin(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, updateLastLogin, id)
 	return err
 }
 
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
-SET full_name = $2, phone_number = $3, email = $4, role = $5, active = $6
-WHERE username = $1 RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login
+SET full_name = $2, phone_number = $3, email = $4, role = $5, active = $6, password_hash = COALESCE($7, password_hash), updated_at = now()
+WHERE username = $1 RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days
 `
 
 type UpdateUserParams struct {
-	Username    string      `json:"username"`
-	FullName    string      `json:"full_name"`
-	PhoneNumber pgtype.Text `json:"phone_number"`
-	Email       pgtype.Text `json:"email"`
-	Role        Role        `json:"role"`
-	Active      bool        `json:"active"`
+	Username     string      `json:"username"`
+	FullName     string      `json:"full_name"`
+	PhoneNumber  pgtype.Text `json:"phone_number"`
+	Email        pgtype.Text `json:"email"`
+	Role         Role        `json:"role"`
+	Active       bool        `json:"active"`
+	PasswordHash string      `json:"password_hash"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
@@ -224,6 +231,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		arg.Email,
 		arg.Role,
 		arg.Active,
+		arg.PasswordHash,
 	)
 	var i User
 	err := row.Scan(
@@ -238,6 +246,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastLogin,
+		&i.WeeklyOffDays,
 	)
 	return i, err
 }

@@ -8,6 +8,7 @@ package database
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -19,7 +20,7 @@ RETURNING token_hash, user_id, device_info, expires_at, created_at, revoked, rev
 
 type CreateRefreshTokenParams struct {
 	TokenHash  string             `json:"token_hash"`
-	UserID     pgtype.UUID        `json:"user_id"`
+	UserID     uuid.UUID          `json:"user_id"`
 	DeviceInfo pgtype.Text        `json:"device_info"`
 	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
 }
@@ -81,7 +82,7 @@ WHERE user_id = $1 AND revoked = false
 `
 
 type RevokeAllUserRefreshTokensParams struct {
-	UserID        pgtype.UUID `json:"user_id"`
+	UserID        uuid.UUID   `json:"user_id"`
 	RevokedReason pgtype.Text `json:"revoked_reason"`
 }
 

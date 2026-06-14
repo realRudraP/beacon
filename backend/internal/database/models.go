@@ -8,6 +8,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -98,7 +99,7 @@ func (ns NullTokenType) Value() (driver.Value, error) {
 }
 
 type AttendanceRecord struct {
-	ID               pgtype.UUID        `json:"id"`
+	ID               uuid.UUID          `json:"id"`
 	UserID           pgtype.UUID        `json:"user_id"`
 	CheckIn          pgtype.Timestamptz `json:"check_in"`
 	CheckInPhotoUri  pgtype.Text        `json:"check_in_photo_uri"`
@@ -112,9 +113,37 @@ type AttendanceRecord struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AuditLog struct {
+	ID          uuid.UUID          `json:"id"`
+	UserID      uuid.UUID          `json:"user_id"`
+	Action      string             `json:"action"`
+	EntityType  string             `json:"entity_type"`
+	EntityID    string             `json:"entity_id"`
+	OldValue    []byte             `json:"old_value"`
+	NewValue    []byte             `json:"new_value"`
+	Description pgtype.Text        `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type Configuration struct {
+	Key       string             `json:"key"`
+	Value     []byte             `json:"value"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Geofence struct {
+	ID        uuid.UUID          `json:"id"`
+	Name      string             `json:"name"`
+	CenterLat float64            `json:"center_lat"`
+	CenterLng float64            `json:"center_lng"`
+	Radius    float64            `json:"radius"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RefreshToken struct {
 	TokenHash     string             `json:"token_hash"`
-	UserID        pgtype.UUID        `json:"user_id"`
+	UserID        uuid.UUID          `json:"user_id"`
 	DeviceInfo    pgtype.Text        `json:"device_info"`
 	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
@@ -123,21 +152,22 @@ type RefreshToken struct {
 }
 
 type User struct {
-	ID           pgtype.UUID        `json:"id"`
-	Username     string             `json:"username"`
-	PasswordHash string             `json:"password_hash"`
-	Role         Role               `json:"role"`
-	FullName     string             `json:"full_name"`
-	PhoneNumber  pgtype.Text        `json:"phone_number"`
-	Email        pgtype.Text        `json:"email"`
-	Active       bool               `json:"active"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	LastLogin    pgtype.Timestamptz `json:"last_login"`
+	ID            uuid.UUID          `json:"id"`
+	Username      string             `json:"username"`
+	PasswordHash  string             `json:"password_hash"`
+	Role          Role               `json:"role"`
+	FullName      string             `json:"full_name"`
+	PhoneNumber   pgtype.Text        `json:"phone_number"`
+	Email         pgtype.Text        `json:"email"`
+	Active        bool               `json:"active"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	LastLogin     pgtype.Timestamptz `json:"last_login"`
+	WeeklyOffDays []int16            `json:"weekly_off_days"`
 }
 
 type VerificationToken struct {
-	ID        pgtype.UUID        `json:"id"`
+	ID        uuid.UUID          `json:"id"`
 	UserID    pgtype.UUID        `json:"user_id"`
 	Type      TokenType          `json:"type"`
 	TokenHash string             `json:"token_hash"`

@@ -6,7 +6,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 var (
@@ -23,10 +22,10 @@ type JWTMaker struct {
 }
 
 type jwtClaims struct {
-	Username  string      `json:"username"`
-	UserId    pgtype.UUID `json:"user_id"`
-	TokenType string      `json:"token_type"`
-	Role      string      `json:"role"`
+	Username  string    `json:"username"`
+	UserId    uuid.UUID `json:"user_id"`
+	TokenType string    `json:"token_type"`
+	Role      string    `json:"role"`
 	jwt.RegisteredClaims
 }
 

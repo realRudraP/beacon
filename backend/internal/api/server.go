@@ -87,10 +87,22 @@ func (s *Server) Routes() http.Handler {
 			r.Post("/login", s.LoginUser)
 			r.Post("/refresh", s.HandleRefreshToken)
 		})
+		r.Route("/geofences", func(r chi.Router) {
+			r.Use(s.Authenticate)
+			r.Post("/", s.createGeofence)
+			r.Get("/", s.getAllGeofences)
+			r.Delete("/{id}", s.deleteGeofence)
+		})
 		r.Route("/setup", func(r chi.Router) {
 			r.Use(s.requireNotInitialized)
 			r.Post("/superadmin", s.HandleRegisterSuperAdmin)
 		})
+		r.Route("/config", func(r chi.Router) {
+			r.Use(s.Authenticate)
+			r.Get("/", s.HandleGetSyncConfig)
+			r.Put("/", s.HandleUpdateSyncConfig)
+		})
+
 	})
 
 	return r

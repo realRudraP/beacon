@@ -20,7 +20,7 @@ func TestJWTMaker(t *testing.T) {
 	t.Run("valid token contains correct claims", func(t *testing.T) {
 		claims := token.Claims{
 			Username:  "alice",
-			UserID:    generateUUID(),
+			UserID:    uuid.New(),
 			TokenType: "access",
 			Role:      "worker",
 		}
@@ -40,7 +40,7 @@ func TestJWTMaker(t *testing.T) {
 	t.Run("expired token returns error", func(t *testing.T) {
 		claims := token.Claims{
 			Username:  "bob",
-			UserID:    generateUUID(),
+			UserID:    uuid.New(),
 			TokenType: "access",
 			Role:      "worker",
 		}
@@ -66,7 +66,7 @@ func TestJWTMaker(t *testing.T) {
 	t.Run("token with wrong secret returns error", func(t *testing.T) {
 		claims := token.Claims{
 			Username:  "charlie",
-			UserID:    generateUUID(),
+			UserID:    uuid.New(),
 			TokenType: "access",
 			Role:      "worker",
 		}
@@ -85,7 +85,7 @@ func TestJWTMaker(t *testing.T) {
 	t.Run("tampered token returns error", func(t *testing.T) {
 		claims := token.Claims{
 			Username:  "dave",
-			UserID:    generateUUID(),
+			UserID:    uuid.New(),
 			TokenType: "access",
 			Role:      "worker",
 		}
