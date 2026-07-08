@@ -38,11 +38,12 @@ type registerUserResponse struct {
 }
 
 type editUserRequest struct {
-	FullName    *string `json:"full_name,omitempty"`
-	Email       *string `json:"email,omitempty"`
-	Role        *string `json:"role,omitempty"`
-	PhoneNumber *string `json:"phone_number,omitempty"`
-	Password    *string `json:"password,omitempty"`
+	FullName      *string  `json:"full_name,omitempty"`
+	Email         *string  `json:"email,omitempty"`
+	Role          *string  `json:"role,omitempty"`
+	PhoneNumber   *string  `json:"phone_number,omitempty"`
+	Password      *string  `json:"password,omitempty"`
+	WeeklyOffDays *[]int16 `json:"weekly_off_days,omitempty"`
 }
 
 func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
@@ -98,10 +99,10 @@ func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	user, err := s.store.CreateUser(r.Context(), database.CreateUserParams{
 		Username:     req.Username,
 		FullName:     req.FullName,
-		PhoneNumber:  convertStringToPGText(req.PhoneNumber),
+		PhoneNumber:  stringToPGText(req.PhoneNumber),
 		PasswordHash: string(hashedPassword),
 		Role:         convertRoleStringToDBRole(req.Role),
-		Email:        convertStringToPGText(req.Email),
+		Email:        stringToPGText(req.Email),
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -182,6 +183,7 @@ func (s *Server) EditUser(w http.ResponseWriter, r *http.Request) {
 	newEmail := userToChange.Email.String
 	newPhone := userToChange.PhoneNumber.String
 	newRole := userToChange.Role
+	newWeeklyOffDays := userToChange.WeeklyOffDays
 
 	if req.FullName != nil {
 		newFullName = *req.FullName
@@ -191,6 +193,10 @@ func (s *Server) EditUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.PhoneNumber != nil {
 		newPhone = *req.PhoneNumber
+	}
+
+	if req.WeeklyOffDays != nil {
+		newWeeklyOffDays = *req.WeeklyOffDays
 	}
 
 	if req.Role != nil {
@@ -224,12 +230,13 @@ func (s *Server) EditUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	updateParams := database.UpdateUserParams{
-		Username:    username,
-		FullName:    newFullName,
-		PhoneNumber: convertStringToPGText(newPhone),
-		Email:       convertStringToPGText(newEmail),
-		Role:        newRole,
-		Active:      userToChange.Active,
+		Username:      username,
+		FullName:      newFullName,
+		PhoneNumber:   stringToPGText(newPhone),
+		Email:         stringToPGText(newEmail),
+		Role:          newRole,
+		Active:        userToChange.Active,
+		WeeklyOffDays: newWeeklyOffDays,
 	}
 
 	if req.Password != nil && *req.Password != "" {

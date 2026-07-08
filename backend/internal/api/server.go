@@ -55,7 +55,6 @@ func NewTestServer(store Store, tokenMaker token.Maker) *Server {
 
 func (s *Server) Routes() http.Handler {
 	r := chi.NewRouter()
-
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
@@ -68,8 +67,32 @@ func (s *Server) Routes() http.Handler {
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
-
+	uploadDir := "./data/uploads/photos"
+	fileServer := http.StripPrefix("/static/photos/", http.FileServer(http.Dir(uploadDir)))
+	r.Group(func(r chi.Router) {
+		r.Use(s.Authenticate)
+		r.Get("/static/photos/*", func(w http.ResponseWriter, r *http.Request) {
+			fileServer.ServeHTTP(w, r)
+		})
+	})
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Route("/attendance", func(r chi.Router) {
+			r.Group(func(r chi.Router) {
+				r.Use(s.Authenticate)
+				r.Post("/", s.handleMarkAttendance)
+				r.Patch("/{id}", s.handleUpdateAttendance)
+				r.Post("/photos/{id}", s.HandleUploadAttendancePhoto)
+			})
+			r.Route("/admin", func(r chi.Router) {
+				r.Use(s.Authenticate)
+				// TODO: add an admin/role-gating middleware here (e.g. s.RequireAdmin)
+				// so workers can't hit these — Authenticate alone only checks login.
+				r.Get("/", s.handleListAttendance)
+				r.Get("/open", s.handleGetOpenAttendance)
+				r.Get("/absent", s.handleGetAbsentUsers)
+				r.Get("/stale", s.handleGetStaleOpenAttendance)
+			})
+		})
 		r.Route("/system", func(r chi.Router) {
 			r.Get("/config", s.getConfig)
 		})
@@ -102,7 +125,6 @@ func (s *Server) Routes() http.Handler {
 			r.Get("/", s.HandleGetSyncConfig)
 			r.Put("/", s.HandleUpdateSyncConfig)
 		})
-
 	})
 
 	return r

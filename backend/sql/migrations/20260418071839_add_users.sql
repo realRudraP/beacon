@@ -44,8 +44,8 @@ CREATE INDEX idx_verification_tokens_user_id    ON verification_tokens(user_id);
 CREATE INDEX idx_verification_tokens_token_hash ON verification_tokens(token_hash);
 
 CREATE TABLE attendance_records (
-    id                  UUID        PRIMARY KEY,
-    user_id             UUID        REFERENCES users(id) ON DELETE CASCADE,
+    id                  UUID        PRIMARY KEY NOT NULL,
+    user_id             UUID        REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     check_in            timestamptz NOT NULL,
     check_in_photo_uri  TEXT,
     check_in_lat        DOUBLE PRECISION,

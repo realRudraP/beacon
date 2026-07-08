@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	database "gitlab.com/realRudraP/beacon/backend/internal/database"
 )
 
@@ -40,4 +41,20 @@ type Store interface {
 	GetAllConfiguration(ctx context.Context) ([]database.Configuration, error)
 	GetSyncConfigByKey(ctx context.Context, key string) (database.Configuration, error)
 	UpsertSyncConfig(ctx context.Context, arg database.UpsertSyncConfigParams) (database.Configuration, error)
+
+	//Attendance
+	GetAttendanceRecordByID(ctx context.Context, id uuid.UUID) (database.AttendanceRecord, error)
+	UpdateAttendanceRecord(ctx context.Context, arg database.UpdateAttendanceRecordParams) (database.AttendanceRecord, error)
+	InsertAttendanceRecord(ctx context.Context, arg database.InsertAttendanceRecordParams) (database.AttendanceRecord, error)
+	UpdateAttendancePhoto(ctx context.Context, arg database.UpdateAttendancePhotoParams) error
+	GetAttendanceRecordsForUser(ctx context.Context, arg database.GetAttendanceRecordsForUserParams) ([]database.AttendanceRecord, error)
+	GetAttendanceRecordsForDateRange(ctx context.Context, arg database.GetAttendanceRecordsForDateRangeParams) ([]database.AttendanceRecord, error)
+	GetAttendanceRecordsForUserAndDateRange(ctx context.Context, arg database.GetAttendanceRecordsForUserAndDateRangeParams) ([]database.AttendanceRecord, error)
+	CountAttendanceRecordsForUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountAttendanceRecordsForDateRange(ctx context.Context, arg database.CountAttendanceRecordsForDateRangeParams) (int64, error)
+	CountAttendanceRecordsForUserAndDateRange(ctx context.Context, arg database.CountAttendanceRecordsForUserAndDateRangeParams) (int64, error)
+	GetAttendanceRecordsForDateRangeWithUser(ctx context.Context, arg database.GetAttendanceRecordsForDateRangeWithUserParams) ([]database.GetAttendanceRecordsForDateRangeWithUserRow, error)
+	GetUsersWithoutAttendanceForDate(ctx context.Context, date pgtype.Date) ([]database.GetUsersWithoutAttendanceForDateRow, error)
+	GetOpenAttendanceRecordsForDate(ctx context.Context, date pgtype.Date) ([]database.GetOpenAttendanceRecordsForDateRow, error)
+	GetStaleOpenAttendanceRecords(ctx context.Context, createdAt pgtype.Timestamptz) ([]database.GetStaleOpenAttendanceRecordsRow, error)
 }

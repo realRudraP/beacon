@@ -30,7 +30,7 @@ services:
       - 8080:8080
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-
+      - beacon_uploads:/app/data/uploads/photos
   web-admin-panel:
     build:
       context: ./web
@@ -56,3 +56,4 @@ volumes:
   beacon_db_data:
   caddy_data:
   caddy_config:
+  beacon_uploads:

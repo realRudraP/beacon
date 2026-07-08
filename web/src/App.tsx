@@ -12,28 +12,26 @@ import UsersPage from "./pages/UsersPage";
 import NotFound from "./pages/NotFound";
 import GeofenceEditor from "./pages/Geofences";
 import SettingsPage from "./pages/Settings";
+import AttendancePage from "./pages/Attendance";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { accessToken } = useAuthStore();
   const { user, loading } = useUserStore();
-
   if (!accessToken) return <Navigate to="/login" replace />;
   if (loading) return <div>Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== "admin" && user.role !== "superadmin")
     return <Navigate to="/unauthorized" replace />;
-
   return <>{children}</>;
 }
+
 export default function App() {
   const { accessToken } = useAuthStore();
   const { fetchUser } = useUserStore();
   const { needsSetup } = useSystemState();
-
   useEffect(() => {
     if (accessToken && !needsSetup) fetchUser();
   }, [accessToken, needsSetup, fetchUser]);
-
   return (
     <BrowserRouter>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
@@ -87,6 +85,14 @@ export default function App() {
                 element={
                   <AdminRoute>
                     <SettingsPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/attendance"
+                element={
+                  <AdminRoute>
+                    <AttendancePage />
                   </AdminRoute>
                 }
               />

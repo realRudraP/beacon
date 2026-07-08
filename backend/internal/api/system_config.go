@@ -21,6 +21,7 @@ type NotificationRule struct {
 	Title       string                 `json:"title"`
 	Description string                 `json:"description"`
 	Enabled     bool                   `json:"enabled"`
+	Time        string                 `json:"time"`
 	Conditions  NotificationConditions `json:"conditions"`
 }
 

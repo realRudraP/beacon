@@ -62,6 +62,7 @@ interface NotificationRule {
   id: string;
   title: string;
   description: string;
+  time: string;
   enabled: boolean;
   conditions: NotificationConditions;
 }
@@ -106,9 +107,6 @@ function formatDate(value: string) {
   });
 }
 
-// The backend can return `null` for empty slices (public_holidays,
-// geofences, notification_rules) instead of `[]`. Normalize those so the
-// UI never has to null-check them.
 function normalizePolicies(data: Partial<GlobalPolicies>): GlobalPolicies {
   return {
     allowed_accuracy_meters: data.allowed_accuracy_meters ?? 0,
@@ -118,8 +116,6 @@ function normalizePolicies(data: Partial<GlobalPolicies>): GlobalPolicies {
   };
 }
 
-// Treat anything at or above "admin" as allowed to edit policies, matching
-// the RoleAdmin check in HandleUpdateSyncConfig.
 function canManagePolicies(role?: string | null) {
   if (!role) return false;
   const normalized = role.toLowerCase();
@@ -135,13 +131,10 @@ export default function SettingsPage() {
   const [loadError, setLoadError] = useState(false);
   const [banner, setBanner] = useState<Banner | null>(null);
 
-  // `original` holds the last data fetched/saved from the server, so
-  // "Discard changes" has something to revert to.
   const [original, setOriginal] = useState<GlobalPolicies | null>(null);
   const [draft, setDraft] = useState<GlobalPolicies | null>(null);
 
   const [savePending, setSavePending] = useState(false);
-
   const [newHoliday, setNewHoliday] = useState("");
 
   useEffect(() => {
@@ -167,8 +160,6 @@ export default function SettingsPage() {
       cancelled = true;
     };
   }, []);
-
-  // ---- Save general / notification policy changes -------------------------
 
   async function savePolicies() {
     if (!draft) return;
@@ -203,8 +194,6 @@ export default function SettingsPage() {
     setBanner(null);
   }
 
-  // ---- Public holidays --------------------------------------------------
-
   function addHoliday() {
     if (!draft || !newHoliday) return;
     if (draft.public_holidays.includes(newHoliday)) {
@@ -225,8 +214,6 @@ export default function SettingsPage() {
       public_holidays: draft.public_holidays.filter((d) => d !== date),
     });
   }
-
-  // ---- Notification rules -------------------------------------------------
 
   function updateRule(index: number, patch: Partial<NotificationRule>) {
     if (!draft) return;
@@ -257,6 +244,7 @@ export default function SettingsPage() {
       id: crypto.randomUUID(),
       title: "New rule",
       description: "",
+      time: "09:00",
       enabled: true,
       conditions: {},
     };
@@ -501,20 +489,37 @@ export default function SettingsPage() {
                           )}
                         </div>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor={`rule-desc-${rule.id}`}>
-                            Description
-                          </Label>
-                          <Input
-                            id={`rule-desc-${rule.id}`}
-                            value={rule.description}
-                            disabled={!canManage}
-                            onChange={(e) =>
-                              updateRule(idx, { description: e.target.value })
-                            }
-                          />
+                      <CardContent className="space-y-6">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor={`rule-desc-${rule.id}`}>
+                              Description
+                            </Label>
+                            <Input
+                              id={`rule-desc-${rule.id}`}
+                              value={rule.description}
+                              disabled={!canManage}
+                              onChange={(e) =>
+                                updateRule(idx, { description: e.target.value })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`rule-time-${rule.id}`}>
+                              Trigger Time
+                            </Label>
+                            <Input
+                              id={`rule-time-${rule.id}`}
+                              type="time"
+                              value={rule.time || ""}
+                              disabled={!canManage}
+                              onChange={(e) =>
+                                updateRule(idx, { time: e.target.value })
+                              }
+                            />
+                          </div>
                         </div>
+
                         <div>
                           <Label className="text-xs uppercase tracking-wide text-muted-foreground">
                             Trigger when

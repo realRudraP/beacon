@@ -1,0 +1,11 @@
+services:
+  db:
+    ports: []   
+
+  backend:
+    build: !reset null
+    image: registry.gitlab.com/realRudraP/beacon/backend:${IMAGE_TAG:-latest}
+
+  web-admin-panel:
+    build: !reset null
+    image: registry.gitlab.com/realRudraP/beacon/web:${IMAGE_TAG:-latest}

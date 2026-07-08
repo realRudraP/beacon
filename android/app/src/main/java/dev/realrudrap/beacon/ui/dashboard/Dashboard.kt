@@ -1,87 +1,124 @@
 package dev.realrudrap.beacon.ui.dashboard
 
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import dev.realrudrap.beacon.ui.attendance.AttendanceScreen
+import dev.realrudrap.beacon.ui.cash.CashScreen
+import dev.realrudrap.beacon.ui.dashboard.home.HomeScreen
+import dev.realrudrap.beacon.ui.profile.ProfileScreen
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import dev.realrudrap.beacon.ui.dashboard.home.HomeUiState
+import kotlin.time.ExperimentalTime
 
 
+@OptIn(ExperimentalTime::class)
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
-    val user by viewModel.user.collectAsState()
+    val innerNavController = rememberNavController()
+    val currentEntry by innerNavController.currentBackStackEntryAsState()
+    val currentRoute = currentEntry?.destination?.route
 
+    val HomeUiState = HomeUiState(
+        workerName = "Test Worker"
+    )
     Scaffold(
-        modifier = Modifier.fillMaxSize()
-    ) { paddingValues ->
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "Profile",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            user?.let {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Username: ${it.username}", style = MaterialTheme.typography.bodyLarge)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Name: ${it.fullName}", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Phone: ${it.phoneNumber}", style = MaterialTheme.typography.bodyMedium)
+        bottomBar = {
+            DashboardNavBar(
+                currentRoute = currentRoute,
+                onNavigate = { route ->
+                    innerNavController.navigate(route) {
+                        popUpTo(innerNavController.graph.startDestinationId) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
                     }
                 }
+            )
+        }
+    ) { padding ->
+        NavHost(
+            navController = innerNavController,
+            startDestination = "home",
+            modifier = Modifier.padding(padding)
+        ) {
+            composable("home") { HomeScreen() }
+            composable("attendance") { ComingSoonScreen(feature = "Attendance History") }
+            composable("cash") { ComingSoonScreen(feature = "Petty Cash") }
+            composable("profile") { ProfileScreen(onLogout = { viewModel.logout() }) }
+        }
+    }
+}
 
-                Spacer(modifier = Modifier.height(32.dp))
+@Composable
+fun DashboardNavBar(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit
+) {
+    NavigationBar {
+        NavigationBarItem(
+            selected = currentRoute == "home",
+            onClick = { onNavigate("home") },
+            icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+            label = { Text("Home") }
+        )
+        NavigationBarItem(
+            selected = currentRoute == "attendance",
+            onClick = { onNavigate("attendance") },
+            icon = { Icon(Icons.Default.DateRange, contentDescription = "Attendance") },
+            label = { Text("Attendance") }
+        )
+        NavigationBarItem(
+            selected = currentRoute == "cash",
+            onClick = { onNavigate("cash") },
+            icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Cash") },
+            label = { Text("Cash") }
+        )
+        NavigationBarItem(
+            selected = currentRoute == "profile",
+            onClick = { onNavigate("profile") },
+            icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
+            label = { Text("Profile") }
+        )
+    }
+}
 
-                Button(
-                    onClick = {
-                        // TODO: Call viewModel.logout() then trigger onLogout()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Logout")
-                }
-
-            } ?: run {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
+@Composable
+fun ComingSoonScreen(feature: String) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = feature,
+                style = MaterialTheme.typography.titleLarge
+            )
+            Text(
+                text = "This feature is coming soon.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

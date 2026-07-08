@@ -74,7 +74,7 @@ func (s *Server) HandleRegisterSuperAdmin(w http.ResponseWriter, r *http.Request
 		Username:     req.Username,
 		PasswordHash: string(hashedPassword),
 		FullName:     req.FullName,
-		Email:        convertStringToPGText(req.Email),
+		Email:        stringToPGText(req.Email),
 	})
 	if err != nil {
 		s.logger.Error("failed to create superadmin", "err", err)

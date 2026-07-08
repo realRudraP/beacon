@@ -4,8 +4,10 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dev.realrudrap.beacon.data.remote.AttendanceApiService
 import dev.realrudrap.beacon.data.remote.AuthApiService
 import dev.realrudrap.beacon.data.remote.AuthInterceptor
+import dev.realrudrap.beacon.data.remote.ConfigApiService
 import dev.realrudrap.beacon.data.remote.TokenAuthenticator
 import dev.realrudrap.beacon.data.remote.UserApiService
 import kotlinx.serialization.json.Json
@@ -38,7 +40,7 @@ object NetworkModule {
         val contentType = "application/json".toMediaType()
 
         return Retrofit.Builder()
-            .baseUrl("http://192.168.29.74:8080/api/v1/")
+            .baseUrl("https://beacon.realrudrap.dev/api/v1/")
             .client(okHttpClient)
             .addConverterFactory(networkJson.asConverterFactory(contentType))
             .build()
@@ -54,5 +56,24 @@ object NetworkModule {
     @Singleton
     fun provideUserApiService(retrofit: Retrofit): UserApiService{
         return retrofit.create(UserApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideConfigApiService(retrofit: Retrofit): ConfigApiService{
+        return retrofit.create(ConfigApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAttendanceApiService(retrofit: Retrofit): AttendanceApiService {
+        return retrofit.create(AttendanceApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideJson(): Json = Json{
+        ignoreUnknownKeys = true
+        coerceInputValues = true
     }
 }

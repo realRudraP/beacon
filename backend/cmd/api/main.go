@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -10,12 +11,17 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 	"gitlab.com/realRudraP/beacon/backend/internal/api"
 	"gitlab.com/realRudraP/beacon/backend/internal/config"
 	"gitlab.com/realRudraP/beacon/backend/internal/token"
+	"gitlab.com/realRudraP/beacon/backend/sql/migrations"
 )
 
 func main() {
@@ -46,6 +52,25 @@ func main() {
 			envCfg.Token.RefreshTokenHashSecret = randomSecret()
 		}
 	}
+
+	logger.Info("running DB migrations...")
+
+	migrationDB, err := sql.Open("pgx", envCfg.DB.DSN())
+	if err != nil {
+		logger.Error("could not open DB for migrations", "error", err)
+		os.Exit(1)
+	}
+	goose.SetBaseFS(migrations.FS)
+	if err := goose.SetDialect("postgres"); err != nil {
+		logger.Error("could not set goose dialect", "error", err)
+		os.Exit(1)
+	}
+	if err := goose.Up(migrationDB, "."); err != nil {
+		logger.Error("could not run DB migrations", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("DB migrations completed successfully")
+	migrationDB.Close()
 
 	pool, err := pgxpool.New(ctx, envCfg.DB.DSN())
 	if err != nil {
@@ -84,11 +109,30 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	logger.Info("starting server", "port", envCfg.Infra.Port, "env", envCfg.Infra.DeploymentEnv)
-	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logger.Error("server error", "error", err)
+	go func() {
+		logger.Info("starting server", "port", envCfg.Infra.Port, "env", envCfg.Infra.DeploymentEnv)
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("shutting down server gracefully...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("server forced to shutdown", "error", err)
 		os.Exit(1)
 	}
+
+	logger.Info("server exited properly")
+
 }
 
 func randomSecret() string {

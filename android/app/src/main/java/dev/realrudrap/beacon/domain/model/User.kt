@@ -12,6 +12,8 @@ data class User (
     @PrimaryKey @SerialName("username")val username :String,
     @SerialName("full_name") val fullName: String,
     @SerialName("phone_number") val phoneNumber: String,
+    @SerialName("email") val email: String,
     @SerialName("role") val role: String,
-    @SerialName("active") val active: Boolean
+    @SerialName("active") val active: Boolean,
+    @SerialName("weekly_off_days") val weeklyOffDays: List<Int>
 )

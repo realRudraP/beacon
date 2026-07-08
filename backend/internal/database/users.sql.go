@@ -209,18 +209,19 @@ func (q *Queries) UpdateLastLogin(ctx context.Context, id uuid.UUID) error {
 
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
-SET full_name = $2, phone_number = $3, email = $4, role = $5, active = $6, password_hash = COALESCE($7, password_hash), updated_at = now()
+SET full_name = $2, phone_number = $3, email = $4, role = $5, active = $6, password_hash = COALESCE($7, password_hash), weekly_off_days = COALESCE($8, weekly_off_days), updated_at = now()
 WHERE username = $1 RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days
 `
 
 type UpdateUserParams struct {
-	Username     string      `json:"username"`
-	FullName     string      `json:"full_name"`
-	PhoneNumber  pgtype.Text `json:"phone_number"`
-	Email        pgtype.Text `json:"email"`
-	Role         Role        `json:"role"`
-	Active       bool        `json:"active"`
-	PasswordHash string      `json:"password_hash"`
+	Username      string      `json:"username"`
+	FullName      string      `json:"full_name"`
+	PhoneNumber   pgtype.Text `json:"phone_number"`
+	Email         pgtype.Text `json:"email"`
+	Role          Role        `json:"role"`
+	Active        bool        `json:"active"`
+	PasswordHash  string      `json:"password_hash"`
+	WeeklyOffDays []int16     `json:"weekly_off_days"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
@@ -232,6 +233,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		arg.Role,
 		arg.Active,
 		arg.PasswordHash,
+		arg.WeeklyOffDays,
 	)
 	var i User
 	err := row.Scan(

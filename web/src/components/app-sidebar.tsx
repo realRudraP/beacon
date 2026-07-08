@@ -8,12 +8,11 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
-
 import { Link } from "react-router-dom";
-import { Home, Users, Settings, MapPin } from "lucide-react";
+import { Home, Users, Settings, MapPin, CalendarClock } from "lucide-react";
 import { useLocation } from "react-router-dom";
-
 import Logo from "@/assets/logo.svg?react";
+
 export function AppSidebar() {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
@@ -25,11 +24,9 @@ export function AppSidebar() {
           <span className="text-lg font-semibold tracking-tight">Beacon.</span>
         </Link>
       </SidebarHeader>
-
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>General</SidebarGroupLabel>
-
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={isActive("/dashboard")}>
@@ -39,7 +36,14 @@ export function AppSidebar() {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={isActive("/attendance")}>
+                <Link to="/attendance">
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  Attendance
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={isActive("/users")}>
                 <Link to="/users">
@@ -48,7 +52,6 @@ export function AppSidebar() {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={isActive("/geofences")}>
                 <Link to="/geofences">
@@ -57,7 +60,6 @@ export function AppSidebar() {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={isActive("/settings")}>
                 <Link to="/settings">

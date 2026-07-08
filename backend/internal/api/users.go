@@ -7,17 +7,18 @@ import (
 )
 
 type getUserProfileResponse struct {
-	Username    string `json:"username"`
-	FullName    string `json:"full_name"`
-	PhoneNumber string `json:"phone_number"`
-	Role        string `json:"role"`
-	Active      bool   `json:"active"`
-	Email       string `json:"email"`
+	ID            string  `json:"id"`
+	Username      string  `json:"username"`
+	FullName      string  `json:"full_name"`
+	PhoneNumber   string  `json:"phone_number"`
+	Role          string  `json:"role"`
+	Active        bool    `json:"active"`
+	Email         string  `json:"email"`
+	WeeklyOffDays []int16 `json:"weekly_off_days"`
 }
 
 func (s *Server) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	claims := r.Context().Value("authClaims").(*token.Claims)
-
 	user, err := s.store.GetUserByID(r.Context(), claims.UserID)
 	if err != nil {
 		s.logger.Error("failed to get requesters profile", "err", err)
@@ -35,7 +36,6 @@ func (s *Server) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	users, err := s.store.GetAllUsers(r.Context())
 	if err != nil {
 		s.logger.Error("failed to get all users", "err", err)
@@ -45,26 +45,24 @@ func (s *Server) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	var resp []getUserProfileResponse
 	for _, user := range users {
 		resp = append(resp, getUserProfileResponse{
-			Username:    user.Username,
-			FullName:    user.FullName,
-			PhoneNumber: user.PhoneNumber.String,
-			Role:        string(user.Role),
-			Email:       user.Email.String,
-			Active:      user.Active,
+			ID:            user.ID.String(),
+			Username:      user.Username,
+			FullName:      user.FullName,
+			PhoneNumber:   user.PhoneNumber.String,
+			Role:          string(user.Role),
+			Email:         user.Email.String,
+			Active:        user.Active,
+			WeeklyOffDays: user.WeeklyOffDays,
 		})
 	}
-
 	s.writeJSON(w, http.StatusOK, resp)
-
 }
 
 func (s *Server) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 	claims := r.Context().Value("authClaims").(*token.Claims)
-
 	user, err := s.store.GetUserByID(r.Context(), claims.UserID)
 	if err != nil {
 		s.logger.Error("failed to get user profile", "err", err)
@@ -74,13 +72,14 @@ func (s *Server) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	s.writeJSON(w, http.StatusOK, getUserProfileResponse{
-		Username:    user.Username,
-		FullName:    user.FullName,
-		PhoneNumber: user.PhoneNumber.String,
-		Role:        string(user.Role),
-		Email:       user.Email.String,
-		Active:      user.Active,
+		ID:            user.ID.String(),
+		Username:      user.Username,
+		FullName:      user.FullName,
+		PhoneNumber:   user.PhoneNumber.String,
+		Role:          string(user.Role),
+		Email:         user.Email.String,
+		Active:        user.Active,
+		WeeklyOffDays: user.WeeklyOffDays,
 	})
 }

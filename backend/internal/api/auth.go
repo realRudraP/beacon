@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+	"strings"
 
 	"gitlab.com/realRudraP/beacon/backend/internal/database"
 	"gitlab.com/realRudraP/beacon/backend/internal/token"
@@ -81,6 +82,8 @@ func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	req.Username = strings.TrimSpace(req.Username)
 
 	user, err := s.store.GetUserByUsername(r.Context(), req.Username)
 	if err != nil {
@@ -226,7 +229,7 @@ func (s *Server) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	newRefreshTokenHash, err := HMACSHA256(newRefreshToken, []byte(s.REFRESH_TOKEN_HASH_SECRET))
+	newRefreshTokenHash, err := HMACSHA256(newRefreshToken, []byte(s.EnvConfig.Token.RefreshTokenHashSecret))
 	if err != nil {
 		s.logger.Error("failed to hash new refresh token", "err", err)
 		s.writeAPIError(w, http.StatusInternalServerError, APIError{
@@ -289,7 +292,7 @@ func storeRefreshTokenForUser(ctx context.Context, refreshTokenHash []byte, user
 	refreshTokenStorage := database.CreateRefreshTokenParams{
 		UserID:     user.ID,
 		TokenHash:  convertByteArrayToBase64String(refreshTokenHash),
-		DeviceInfo: convertStringToPGText(deviceInfo),
+		DeviceInfo: stringToPGText(deviceInfo),
 		ExpiresAt:  convertTimeToPGTimeTz(time.Now().Add(tokenValidFor)),
 	}
 	_, err := store.CreateRefreshToken(ctx, refreshTokenStorage)
@@ -301,7 +304,7 @@ func revokeRefreshToken(ctx context.Context, refreshTokenHash []byte, store Stor
 	// Takes a hashed refresh token and revokes it in the database
 	if err := store.RevokeRefreshToken(ctx, database.RevokeRefreshTokenParams{
 		TokenHash:     convertByteArrayToBase64String(refreshTokenHash),
-		RevokedReason: convertStringToPGText(reason),
+		RevokedReason: stringToPGText(reason),
 	}); err != nil {
 		return err
 	}

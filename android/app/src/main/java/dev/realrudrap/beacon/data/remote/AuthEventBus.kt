@@ -7,6 +7,7 @@ import javax.inject.Singleton
 
 sealed class AuthEvent{
     object Unauthorized: AuthEvent()
+    object Logout: AuthEvent()
 }
 @Singleton
 class AuthEventBus @Inject constructor() {

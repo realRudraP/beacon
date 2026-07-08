@@ -100,7 +100,7 @@ func (ns NullTokenType) Value() (driver.Value, error) {
 
 type AttendanceRecord struct {
 	ID               uuid.UUID          `json:"id"`
-	UserID           pgtype.UUID        `json:"user_id"`
+	UserID           uuid.UUID          `json:"user_id"`
 	CheckIn          pgtype.Timestamptz `json:"check_in"`
 	CheckInPhotoUri  pgtype.Text        `json:"check_in_photo_uri"`
 	CheckInLat       pgtype.Float8      `json:"check_in_lat"`
@@ -111,6 +111,7 @@ type AttendanceRecord struct {
 	CheckOutLong     pgtype.Float8      `json:"check_out_long"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	Date             pgtype.Date        `json:"date"`
 }
 
 type AuditLog struct {

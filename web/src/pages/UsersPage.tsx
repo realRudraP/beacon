@@ -76,6 +76,7 @@ interface User {
   role: UserRole;
   active: boolean;
   email: string;
+  weekly_off_days: number[];
 }
 
 interface UserFormData {
@@ -86,6 +87,7 @@ interface UserFormData {
   phone_number: string;
   password: string;
   confirm_password: string;
+  weekly_off_days: number[];
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +130,28 @@ function getRoleConfig(role: string) {
   );
 }
 
+/** 0 = Sunday … 6 = Saturday, matching JS Date#getDay() / the backend's int16 day index */
+const DAYS_OF_WEEK: { value: number; short: string; label: string }[] = [
+  { value: 0, short: "Su", label: "Sunday" },
+  { value: 1, short: "Mo", label: "Monday" },
+  { value: 2, short: "Tu", label: "Tuesday" },
+  { value: 3, short: "We", label: "Wednesday" },
+  { value: 4, short: "Th", label: "Thursday" },
+  { value: 5, short: "Fr", label: "Friday" },
+  { value: 6, short: "Sa", label: "Saturday" },
+];
+
+function formatWeeklyOffDays(days: number[] | undefined): string {
+  if (!days || days.length === 0) return "None";
+  return days
+    .slice()
+    .sort((a, b) => a - b)
+    .map(
+      (d) => DAYS_OF_WEEK.find((x) => x.value === d)?.label.slice(0, 3) ?? "?",
+    )
+    .join(", ");
+}
+
 const EMPTY_FORM: UserFormData = {
   full_name: "",
   username: "",
@@ -136,6 +160,7 @@ const EMPTY_FORM: UserFormData = {
   password: "",
   confirm_password: "",
   phone_number: "",
+  weekly_off_days: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -153,6 +178,48 @@ function UserAvatar({ name }: { name: string }) {
   return (
     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary select-none">
       {initials}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Weekly off day picker
+// ---------------------------------------------------------------------------
+
+function WeeklyOffDayPicker({
+  value,
+  onToggle,
+}: {
+  value: number[];
+  onToggle: (day: number) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>Weekly Off Days</Label>
+      <div className="flex flex-wrap gap-1.5">
+        {DAYS_OF_WEEK.map((day) => {
+          const selected = value.includes(day.value);
+          return (
+            <button
+              key={day.value}
+              type="button"
+              onClick={() => onToggle(day.value)}
+              aria-pressed={selected}
+              title={day.label}
+              className={`h-9 w-9 shrink-0 rounded-full border text-xs font-medium transition-colors ${
+                selected
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {day.short}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Select the days this user is regularly off duty.
+      </p>
     </div>
   );
 }
@@ -235,6 +302,7 @@ export default function UsersPage() {
       password: "",
       confirm_password: "",
       phone_number: user.phone_number || "",
+      weekly_off_days: user.weekly_off_days ? [...user.weekly_off_days] : [],
     });
     setFormError(null);
     setDialogOpen(true);
@@ -242,6 +310,16 @@ export default function UsersPage() {
 
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement>) {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }
+
+  function toggleWeeklyOffDay(day: number) {
+    setFormData((prev) => {
+      const exists = prev.weekly_off_days.includes(day);
+      const weekly_off_days = exists
+        ? prev.weekly_off_days.filter((d) => d !== day)
+        : [...prev.weekly_off_days, day].sort((a, b) => a - b);
+      return { ...prev, weekly_off_days };
+    });
   }
 
   async function handleFormSubmit(e: React.FormEvent) {
@@ -274,6 +352,7 @@ export default function UsersPage() {
           email: formData.email,
           role: formData.role,
           phone_number: formData.phone_number,
+          weekly_off_days: formData.weekly_off_days,
         };
         if (formData.password) payload.password = formData.password;
         const { data } = await api.patch<User>(
@@ -291,6 +370,7 @@ export default function UsersPage() {
           role: formData.role,
           password: formData.password,
           phone_number: formData.phone_number,
+          weekly_off_days: formData.weekly_off_days,
         });
         setUsers((prev) => [data, ...prev]);
       }
@@ -395,19 +475,19 @@ export default function UsersPage() {
           {/* ── table ── */}
           <div className="rounded-lg border bg-card overflow-x-auto">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground min-w-[700px]">
+              <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground min-w-[820px]">
                 <Loader2 className="h-6 w-6 animate-spin" />
                 <span className="text-sm">Loading users…</span>
               </div>
             ) : fetchError ? (
-              <div className="flex flex-col items-center justify-center py-24 gap-3 min-w-[700px]">
+              <div className="flex flex-col items-center justify-center py-24 gap-3 min-w-[820px]">
                 <p className="text-sm text-destructive">{fetchError}</p>
                 <Button variant="outline" size="sm" onClick={fetchUsers}>
                   Retry
                 </Button>
               </div>
             ) : filteredUsers.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 gap-2 text-muted-foreground min-w-[700px]">
+              <div className="flex flex-col items-center justify-center py-24 gap-2 text-muted-foreground min-w-[820px]">
                 <Users className="h-8 w-8 opacity-30" />
                 <p className="text-sm font-medium">No users found</p>
                 <p className="text-xs">
@@ -417,13 +497,14 @@ export default function UsersPage() {
                 </p>
               </div>
             ) : (
-              <Table className="min-w-[700px]">
+              <Table className="min-w-[820px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
                     <TableHead>Username</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Weekly Off</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -479,6 +560,13 @@ export default function UsersPage() {
                               {user.active ? "Active" : "Inactive"}
                             </span>
                           </div>
+                        </TableCell>
+
+                        {/* weekly off days */}
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground whitespace-nowrap">
+                            {formatWeeklyOffDays(user.weekly_off_days)}
+                          </span>
                         </TableCell>
 
                         {/* actions */}
@@ -623,6 +711,11 @@ export default function UsersPage() {
                 onChange={handleFormChange}
               />
             </div>
+
+            <WeeklyOffDayPicker
+              value={formData.weekly_off_days}
+              onToggle={toggleWeeklyOffDay}
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
