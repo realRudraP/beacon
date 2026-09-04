@@ -60,7 +60,7 @@ fun DashboardScreen(
             modifier = Modifier.padding(padding)
         ) {
             composable("home") { HomeScreen() }
-            composable("attendance") { ComingSoonScreen(feature = "Attendance History") }
+            composable("attendance") { AttendanceScreen() }
             composable("cash") { ComingSoonScreen(feature = "Petty Cash") }
             composable("profile") { ProfileScreen(onLogout = { viewModel.logout() }) }
         }

@@ -48,3 +48,14 @@ func convertRoleStringToDBRole(roleStr string) database.Role {
 		return database.RoleWorker // default to worker if invalid role is provided
 	}
 }
+
+// Helper to convert time.Time to pgtype.Timestamptz safely
+func optionalTimeToPGTimeTz(t time.Time, valid bool) pgtype.Timestamptz {
+	if !valid || t.IsZero() {
+		return pgtype.Timestamptz{Valid: false}
+	}
+	return pgtype.Timestamptz{
+		Time:  t,
+		Valid: true,
+	}
+}

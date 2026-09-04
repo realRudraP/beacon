@@ -1,0 +1,21 @@
+meta {
+  name: Get My Attendance
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{DOMAIN}}{{API_VERSION}}/attendance
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFsaWNlIiwidXNlcl9pZCI6Ijc1NmYwNGRlLTQyODItNGI2NC1hMDNlLTk1ZGRjOTU2OWFkMiIsInRva2VuX3R5cGUiOiJhY2Nlc3MiLCJyb2xlIjoid29ya2VyIiwiaXNzIjoiYmVhY29uIiwiZXhwIjoxNzg4NTA2MDkwLCJpYXQiOjE3ODg1MDUxOTAsImp0aSI6ImY4MWFhNDc5LTFmNjctNDM5OS04ZWU4LTNmYzUzZmY0ZjM3NiJ9.hisIbb3NBLJJEOTiVgrwRybiYuDcs5xb9bNKZsZbqm0
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+  forwardAuthorizationHeader: false
+}

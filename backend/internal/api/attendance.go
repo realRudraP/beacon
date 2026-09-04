@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"gitlab.com/realRudraP/beacon/backend/internal/database"
 	"gitlab.com/realRudraP/beacon/backend/internal/token"
 )
@@ -122,9 +123,7 @@ func (s *Server) handleMarkAttendance(w http.ResponseWriter, r *http.Request) {
 		CheckOutPhotoUri: stringToPGText(req.ClockOutPhotoURI),
 		CheckOutLat:      optionalFloat64ToPGFloat8(req.ClockOutLat, hasClockOut),
 		CheckOutLong:     optionalFloat64ToPGFloat8(req.ClockOutLong, hasClockOut),
-	}
-	if hasClockOut {
-		params.CheckOut = convertTimeToPGTimeTz(clockOutTime)
+		CheckOut:         optionalTimeToPGTimeTz(clockOutTime, hasClockOut),
 	}
 
 	record, err := s.store.InsertAttendanceRecord(r.Context(), params)
@@ -332,4 +331,57 @@ func validateUpdateAttendanceRequest(req updateAttendanceRequest) map[string]str
 	}
 
 	return fieldErrors
+}
+
+func (s *Server) handleGetMyAttendance(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value("authClaims").(*token.Claims)
+
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+
+	var fromDate, toDate pgtype.Date
+
+	if fromStr != "" {
+		t, err := time.Parse("2006-01-02", fromStr)
+		if err != nil {
+			s.writeAPIError(w, http.StatusBadRequest, APIError{
+				Code:    ErrCodeInvalidRequest,
+				Message: "invalid 'from' date format, expected YYYY-MM-DD",
+			})
+			return
+		}
+		fromDate = convertTimeToPGDate(t)
+	}
+
+	if toStr != "" {
+		t, err := time.Parse("2006-01-02", toStr)
+		if err != nil {
+			s.writeAPIError(w, http.StatusBadRequest, APIError{
+				Code:    ErrCodeInvalidRequest,
+				Message: "invalid 'to' date format, expected YYYY-MM-DD",
+			})
+			return
+		}
+		toDate = convertTimeToPGDate(t)
+	}
+
+	records, err := s.store.GetAttendanceRecordsByUserId(r.Context(), database.GetAttendanceRecordsByUserIdParams{
+		UserID:    claims.UserID,
+		StartDate: fromDate,
+		EndDate:   toDate,
+	})
+	if err != nil {
+		s.logger.Error("failed to fetch attendance records", "err", err)
+		s.writeAPIError(w, http.StatusInternalServerError, APIError{
+			Code:    ErrCodeInternalError,
+			Message: "something went wrong",
+		})
+		return
+	}
+
+	if records == nil {
+		records = []database.GetAttendanceRecordsByUserIdRow{}
+	}
+
+	s.writeJSON(w, http.StatusOK, records)
 }

@@ -80,6 +80,7 @@ func (s *Server) Routes() http.Handler {
 			r.Group(func(r chi.Router) {
 				r.Use(s.Authenticate)
 				r.Post("/", s.handleMarkAttendance)
+				r.Get("/", s.handleGetMyAttendance)
 				r.Patch("/{id}", s.handleUpdateAttendance)
 				r.Post("/photos/{id}", s.HandleUploadAttendancePhoto)
 			})

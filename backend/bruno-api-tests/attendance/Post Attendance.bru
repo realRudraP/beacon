@@ -1,0 +1,31 @@
+meta {
+  name: Post Attendance
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{DOMAIN}}{{API_VERSION}}/attendance
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFsaWNlIiwidXNlcl9pZCI6Ijc1NmYwNGRlLTQyODItNGI2NC1hMDNlLTk1ZGRjOTU2OWFkMiIsInRva2VuX3R5cGUiOiJhY2Nlc3MiLCJyb2xlIjoid29ya2VyIiwiaXNzIjoiYmVhY29uIiwiZXhwIjoxNzg4NTE0ODc0LCJpYXQiOjE3ODg1MTM5NzQsImp0aSI6IjZmN2E5Nzc3LTQ0NmItNGQyYS1hMmJlLTA2YzE0MTFkZTY3ZCJ9.YswCNvpgYwXThknBE0VfaEXuGE5zPFj6X-0mpV8Lb0k
+}
+
+body:json {
+  {
+    "id": "540e8400-c28b-41d4-a715-443655140000",
+    "clock_in_time": "2026-08-06T09:00:00Z",
+    "clock_in_lat": 23.162872,
+    "clock_in_long": 72.661107,
+    "clock_in_photo_uri": "https://example.com/uploads/clockin.jpg"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+  forwardAuthorizationHeader: false
+}

@@ -93,3 +93,24 @@ FROM attendance_records ar
 JOIN users u ON u.id = ar.user_id
 WHERE ar.check_out IS NULL AND ar.created_at < $1
 ORDER BY ar.created_at ASC;
+
+-- name: GetAttendanceRecordsByUserId :many
+SELECT
+    id,
+    user_id,
+    date,
+    check_in,
+    check_in_photo_uri,
+    check_in_lat,
+    check_in_long,
+    check_out,
+    check_out_photo_uri,
+    check_out_lat,
+    check_out_long,
+    created_at,
+    updated_at
+FROM attendance_records
+WHERE user_id = sqlc.arg(user_id)
+AND (sqlc.narg(start_date)::date IS NULL OR date >= sqlc.narg(start_date)::date)
+AND (sqlc.narg(end_date)::date IS NULL OR date <= sqlc.narg(end_date)::date)
+ORDER BY date DESC;

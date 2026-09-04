@@ -86,6 +86,84 @@ func (q *Queries) GetAttendanceRecordByID(ctx context.Context, id uuid.UUID) (At
 	return i, err
 }
 
+const getAttendanceRecordsByUserId = `-- name: GetAttendanceRecordsByUserId :many
+SELECT
+    id,
+    user_id,
+    date,
+    check_in,
+    check_in_photo_uri,
+    check_in_lat,
+    check_in_long,
+    check_out,
+    check_out_photo_uri,
+    check_out_lat,
+    check_out_long,
+    created_at,
+    updated_at
+FROM attendance_records
+WHERE user_id = $1
+AND ($2::date IS NULL OR date >= $2::date)
+AND ($3::date IS NULL OR date <= $3::date)
+ORDER BY date DESC
+`
+
+type GetAttendanceRecordsByUserIdParams struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	StartDate pgtype.Date `json:"start_date"`
+	EndDate   pgtype.Date `json:"end_date"`
+}
+
+type GetAttendanceRecordsByUserIdRow struct {
+	ID               uuid.UUID          `json:"id"`
+	UserID           uuid.UUID          `json:"user_id"`
+	Date             pgtype.Date        `json:"date"`
+	CheckIn          pgtype.Timestamptz `json:"check_in"`
+	CheckInPhotoUri  pgtype.Text        `json:"check_in_photo_uri"`
+	CheckInLat       pgtype.Float8      `json:"check_in_lat"`
+	CheckInLong      pgtype.Float8      `json:"check_in_long"`
+	CheckOut         pgtype.Timestamptz `json:"check_out"`
+	CheckOutPhotoUri pgtype.Text        `json:"check_out_photo_uri"`
+	CheckOutLat      pgtype.Float8      `json:"check_out_lat"`
+	CheckOutLong     pgtype.Float8      `json:"check_out_long"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetAttendanceRecordsByUserId(ctx context.Context, arg GetAttendanceRecordsByUserIdParams) ([]GetAttendanceRecordsByUserIdRow, error) {
+	rows, err := q.db.Query(ctx, getAttendanceRecordsByUserId, arg.UserID, arg.StartDate, arg.EndDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAttendanceRecordsByUserIdRow
+	for rows.Next() {
+		var i GetAttendanceRecordsByUserIdRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Date,
+			&i.CheckIn,
+			&i.CheckInPhotoUri,
+			&i.CheckInLat,
+			&i.CheckInLong,
+			&i.CheckOut,
+			&i.CheckOutPhotoUri,
+			&i.CheckOutLat,
+			&i.CheckOutLong,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAttendanceRecordsForDateRange = `-- name: GetAttendanceRecordsForDateRange :many
 SELECT id, user_id, check_in, check_in_photo_uri, check_in_lat, check_in_long, check_out, check_out_photo_uri, check_out_lat, check_out_long, created_at, updated_at, date FROM attendance_records
 WHERE date BETWEEN $1 AND $2

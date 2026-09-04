@@ -7,6 +7,7 @@ import dev.realrudrap.beacon.data.remote.dto.UpdateAttendanceRequest
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -33,4 +34,10 @@ interface AttendanceApiService {
         @Query("type") type: String,
         @Part photo: MultipartBody.Part
     ): Response<PhotoUploadResponse>
+
+    @GET("attendance/")
+    suspend fun getAttendance(
+        @Query("from") fromDate: String? = null,
+        @Query("to") toDate: String? = null
+    ): Response<List<AttendanceResponse>>
 }

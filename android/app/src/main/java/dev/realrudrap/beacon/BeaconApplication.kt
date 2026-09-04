@@ -24,7 +24,7 @@ class BeaconApplication: Application(), Configuration.Provider{
         super.onCreate()
         createNotificationChannels()
 
-            Timber.plant(Timber.DebugTree())
+        Timber.plant(Timber.DebugTree())
     }
     private fun createNotificationChannels() {
         val channel = NotificationChannel(

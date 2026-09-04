@@ -57,4 +57,5 @@ type Store interface {
 	GetUsersWithoutAttendanceForDate(ctx context.Context, date pgtype.Date) ([]database.GetUsersWithoutAttendanceForDateRow, error)
 	GetOpenAttendanceRecordsForDate(ctx context.Context, date pgtype.Date) ([]database.GetOpenAttendanceRecordsForDateRow, error)
 	GetStaleOpenAttendanceRecords(ctx context.Context, createdAt pgtype.Timestamptz) ([]database.GetStaleOpenAttendanceRecordsRow, error)
+	GetAttendanceRecordsByUserId(ctx context.Context, arg database.GetAttendanceRecordsByUserIdParams) ([]database.GetAttendanceRecordsByUserIdRow, error)
 }
