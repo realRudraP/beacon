@@ -84,11 +84,14 @@ class HomeViewModel @Inject constructor(
     private var latestConfig: Config? = null
 
     init {
+        // 1. Observe User
         viewModelScope.launch {
             userRepository.user.collect { user ->
                 _homeUiState.update { it.copy(workerName = user?.fullName ?: "User") }
             }
         }
+
+        // 2. Observe Config
         viewModelScope.launch {
             logger.d("HomeViewModel", "Waiting for config...")
             configRepository.config.filterNotNull().collect { config ->
@@ -105,6 +108,8 @@ class HomeViewModel @Inject constructor(
                 }
             }
         }
+
+        // 3. Observe Last Synced Time
         viewModelScope.launch {
             configRepository.lastSyncedAt.collect { lastSyncedAt ->
                 _homeUiState.update {
@@ -115,9 +120,40 @@ class HomeViewModel @Inject constructor(
                 }
             }
         }
+
+        // 4. Observe Today's Attendance Record reactively
         viewModelScope.launch {
-            if (attendanceRepository.hasClockedInToday()) {
-                _homeUiState.update { it.copy(clockInState = ClockInState.ClockedIn) }
+            attendanceRepository.todayRecord.collect { record ->
+                _homeUiState.update {
+                    val newState = when {
+                        record?.clockOutTime != null -> ClockInState.DoneForTheDay
+                        record != null -> ClockInState.ClockedIn
+                        else -> resolveClockInState(
+                            geofencesEmpty = latestConfig?.geofences.isNullOrEmpty(),
+                            currentState = it.clockInState
+                        )
+                    }
+                    it.copy(clockInState = newState)
+                }
+            }
+        }
+
+        // 5. TRIGGER INITIAL FETCH (Fixes the first login hang)
+        viewModelScope.launch {
+            _homeUiState.update { it.copy(isSyncing = true) }
+            try {
+                configRepository.refreshConfig()
+                userRepository.refreshUser()
+                AttendanceSyncWorker.syncNow(workManager)
+            } catch (e: Exception) {
+                logger.e("HomeViewModel", "Initial sync failed", e)
+            } finally {
+                _homeUiState.update {
+                    it.copy(
+                        isSyncing = false,
+                        isFirstSyncPending = false
+                    )
+                }
             }
         }
     }
