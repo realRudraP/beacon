@@ -61,7 +61,7 @@ fun DashboardScreen(
         ) {
             composable("home") { HomeScreen() }
             composable("attendance") { AttendanceScreen() }
-            composable("cash") { ComingSoonScreen(feature = "Petty Cash") }
+            composable("cash") { CashScreen() }
             composable("profile") { ProfileScreen(onLogout = { viewModel.logout() }) }
         }
     }

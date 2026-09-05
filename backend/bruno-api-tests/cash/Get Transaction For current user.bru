@@ -1,0 +1,21 @@
+meta {
+  name: Get Transaction For current user
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{DOMAIN}}{{API_VERSION}}/cash/transactions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InJ1ZHJhIiwidXNlcl9pZCI6Ijk5ZDU2MzRjLTU4OTAtNDVmMC1iNWVlLTk5ODhmN2Y5ZmZmYyIsInRva2VuX3R5cGUiOiJhY2Nlc3MiLCJyb2xlIjoic3VwZXJhZG1pbiIsImlzcyI6ImJlYWNvbiIsImV4cCI6MTc4ODUzMjEzNiwiaWF0IjoxNzg4NTMxMjM2LCJqdGkiOiJkMjJhOTdiNy0zYjBiLTQxOGMtYmQzZS0yZThmYmQ2OWIxYWIifQ.giBPErP8RajM2jY96ch7pdjNs3AsNPBr5vS46J3aA9U
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+  forwardAuthorizationHeader: false
+}

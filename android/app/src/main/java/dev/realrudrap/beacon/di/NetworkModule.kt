@@ -7,6 +7,7 @@ import dagger.hilt.components.SingletonComponent
 import dev.realrudrap.beacon.data.remote.AttendanceApiService
 import dev.realrudrap.beacon.data.remote.AuthApiService
 import dev.realrudrap.beacon.data.remote.AuthInterceptor
+import dev.realrudrap.beacon.data.remote.CashApiService
 import dev.realrudrap.beacon.data.remote.ConfigApiService
 import dev.realrudrap.beacon.data.remote.TokenAuthenticator
 import dev.realrudrap.beacon.data.remote.UserApiService
@@ -40,7 +41,7 @@ object NetworkModule {
         val contentType = "application/json".toMediaType()
 
         return Retrofit.Builder()
-            .baseUrl("https://beacon.realrudrap.dev/api/v1/")
+            .baseUrl("http://192.168.1.79:8080/api/v1/")
             .client(okHttpClient)
             .addConverterFactory(networkJson.asConverterFactory(contentType))
             .build()
@@ -68,6 +69,11 @@ object NetworkModule {
     @Singleton
     fun provideAttendanceApiService(retrofit: Retrofit): AttendanceApiService {
         return retrofit.create(AttendanceApiService::class.java)
+    }
+    @Provides
+    @Singleton
+    fun provideCashApiService(retrofit: Retrofit): CashApiService{
+        return retrofit.create(CashApiService::class.java)
     }
 
     @Provides

@@ -12,8 +12,7 @@ import {
   X,
 } from "lucide-react";
 
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+
 import { UserMenu } from "./UserMenu";
 import { useSystemState } from "@/context/ConfigContext";
 import api from "@/api/axiosClient";
@@ -633,13 +632,13 @@ export default function AttendancePage() {
     : undefined;
 
   return (
-    <SidebarProvider>
+
       <div className="flex min-h-screen w-full">
-        <AppSidebar />
+
         <main className="flex-1 p-4 sm:p-6 min-w-0">
           <div className="flex items-center justify-between border-b pb-3 mb-6">
             <div className="flex items-center gap-2 sm:gap-4">
-              <SidebarTrigger />
+
               <span className="font-semibold text-base sm:text-lg tracking-tight truncate">
                 {branding.business_name}
               </span>
@@ -1226,6 +1225,6 @@ export default function AttendancePage() {
           </Tabs>
         </main>
       </div>
-    </SidebarProvider>
+
   );
 }

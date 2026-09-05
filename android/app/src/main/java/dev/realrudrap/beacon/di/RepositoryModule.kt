@@ -6,10 +6,12 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.realrudrap.beacon.data.repository.AttendanceRepositoryImpl
 import dev.realrudrap.beacon.data.repository.AuthRepositoryImpl
+import dev.realrudrap.beacon.data.repository.CashRepositoryImpl
 import dev.realrudrap.beacon.data.repository.ConfigRepositoryImpl
 import dev.realrudrap.beacon.data.repository.UserRepositoryImpl
 import dev.realrudrap.beacon.domain.repository.AttendanceRepository
 import dev.realrudrap.beacon.domain.repository.AuthRepository
+import dev.realrudrap.beacon.domain.repository.CashRepository
 import dev.realrudrap.beacon.domain.repository.ConfigRepository
 import dev.realrudrap.beacon.domain.repository.UserRepository
 import javax.inject.Singleton
@@ -38,4 +40,9 @@ abstract class RepositoryModule {
     abstract fun bindConfigRepository(
         configRepositoryImpl: ConfigRepositoryImpl
     ): ConfigRepository
+
+    @Binds
+    abstract fun bindCashRepository(
+        cashRepositoryImpl: CashRepositoryImpl
+    ): CashRepository
 }

@@ -12,6 +12,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.realrudrap.beacon.data.local.AppDatabase
 import dev.realrudrap.beacon.data.local.AttendanceDao
+import dev.realrudrap.beacon.data.local.CashTransactionDao
 import dev.realrudrap.beacon.data.local.ConfigDao
 import dev.realrudrap.beacon.data.local.UserDao
 import javax.inject.Singleton
@@ -56,5 +57,10 @@ object StorageModule {
     @Singleton
     fun provideAttendanceDao(db: AppDatabase): AttendanceDao {
         return db.attendanceDao()
+    }
+    @Provides
+    @Singleton
+    fun provideCashDao(db: AppDatabase): CashTransactionDao{
+        return db.cashTransactionDao()
     }
 }

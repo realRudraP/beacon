@@ -10,8 +10,7 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserMenu } from "./UserMenu";
 import { useUserStore } from "@/store/userStore";
 import { useSystemState } from "@/context/ConfigContext";
@@ -407,12 +406,8 @@ export default function UsersPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full">
-        <AppSidebar />
 
-        <main className="flex-1 p-4 sm:p-6 min-w-0">
-          {/* ── top bar ── */}
+         <>
           <div className="flex items-center justify-between border-b pb-3 mb-6">
             <div className="flex items-center gap-2 sm:gap-4">
               <SidebarTrigger />
@@ -423,7 +418,6 @@ export default function UsersPage() {
             <UserMenu />
           </div>
 
-          {/* ── page header ── */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-muted shrink-0">
@@ -442,7 +436,7 @@ export default function UsersPage() {
             </Button>
           </div>
 
-          {/* ── toolbar ── */}
+
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="relative flex-1 w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -615,12 +609,10 @@ export default function UsersPage() {
               {users.length === 1 ? "user" : "users"}
             </p>
           )}
-        </main>
-      </div>
 
-      {/* ════════════════════════════════════════════════════════
-          Add / Edit Dialog
-      ════════════════════════════════════════════════════════ */}
+
+
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -820,6 +812,6 @@ export default function UsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SidebarProvider>
+      </>
   );
 }

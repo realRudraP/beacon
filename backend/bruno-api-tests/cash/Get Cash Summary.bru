@@ -1,0 +1,21 @@
+meta {
+  name: Get Cash Summary
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{DOMAIN}}{{API_VERSION}}/cash/summary
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InJ1ZHJhIiwidXNlcl9pZCI6Ijk5ZDU2MzRjLTU4OTAtNDVmMC1iNWVlLTk5ODhmN2Y5ZmZmYyIsInRva2VuX3R5cGUiOiJhY2Nlc3MiLCJyb2xlIjoic3VwZXJhZG1pbiIsImlzcyI6ImJlYWNvbiIsImV4cCI6MTc4ODU0NDU2MSwiaWF0IjoxNzg4NTQzNjYxLCJqdGkiOiJjZGQwMDg4YS1iYzExLTQyMTEtYTk3MC00ODA5Y2JjM2E5NzIifQ.Wo2C2iXHZ9U_rvJ-yEvq1maGLM9j-1u8u8I-OXpXrvQ
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+  forwardAuthorizationHeader: false
+}

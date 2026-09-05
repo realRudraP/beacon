@@ -9,7 +9,7 @@ import {
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { Link } from "react-router-dom";
-import { Home, Users, Settings, MapPin, CalendarClock } from "lucide-react";
+import { Home, Users, Settings, MapPin, CalendarClock, Wallet } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import Logo from "@/assets/logo.svg?react";
 
@@ -41,6 +41,14 @@ export function AppSidebar() {
                 <Link to="/attendance">
                   <CalendarClock className="mr-2 h-4 w-4" />
                   Attendance
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={isActive("/cash")}>
+                <Link to="/cash">
+                  <Wallet className="mr-2 h-4 w-4" />
+                  Cash
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

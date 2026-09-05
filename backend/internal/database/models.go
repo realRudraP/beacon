@@ -12,6 +12,48 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CashTransactionType string
+
+const (
+	CashTransactionTypeCredit CashTransactionType = "credit"
+	CashTransactionTypeDebit  CashTransactionType = "debit"
+)
+
+func (e *CashTransactionType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CashTransactionType(s)
+	case string:
+		*e = CashTransactionType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CashTransactionType: %T", src)
+	}
+	return nil
+}
+
+type NullCashTransactionType struct {
+	CashTransactionType CashTransactionType `json:"cash_transaction_type"`
+	Valid               bool                `json:"valid"` // Valid is true if CashTransactionType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCashTransactionType) Scan(value interface{}) error {
+	if value == nil {
+		ns.CashTransactionType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CashTransactionType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCashTransactionType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CashTransactionType), nil
+}
+
 type Role string
 
 const (
@@ -126,6 +168,18 @@ type AuditLog struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type CashTransaction struct {
+	ID              uuid.UUID           `json:"id"`
+	UserID          uuid.UUID           `json:"user_id"`
+	Type            CashTransactionType `json:"type"`
+	Amount          pgtype.Numeric      `json:"amount"`
+	Category        string              `json:"category"`
+	Description     pgtype.Text         `json:"description"`
+	ReceiptPhotoUri pgtype.Text         `json:"receipt_photo_uri"`
+	CreatedBy       uuid.UUID           `json:"created_by"`
+	CreatedAt       pgtype.Timestamptz  `json:"created_at"`
+}
+
 type Configuration struct {
 	Key       string             `json:"key"`
 	Value     []byte             `json:"value"`
@@ -165,6 +219,7 @@ type User struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 	LastLogin     pgtype.Timestamptz `json:"last_login"`
 	WeeklyOffDays []int16            `json:"weekly_off_days"`
+	FcmToken      pgtype.Text        `json:"fcm_token"`
 }
 
 type VerificationToken struct {

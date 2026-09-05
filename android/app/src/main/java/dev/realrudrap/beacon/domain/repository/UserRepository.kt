@@ -6,4 +6,5 @@ import kotlinx.coroutines.flow.Flow
 interface UserRepository {
     val user: Flow<User?>
     suspend fun refreshUser(): Result<Unit>
+    suspend fun updateFcmToken(token: String): Result<Unit>
 }

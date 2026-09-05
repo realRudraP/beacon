@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserMenu } from "./UserMenu";
 import { useSystemState } from "@/context/ConfigContext";
 import api from "@/api/axiosClient";
@@ -199,11 +198,7 @@ export default function GeofencesPage() {
   };
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-muted/40">
-        <AppSidebar />
-
-        <main className="flex-1 p-6">
+    <>
           {/* Header */}
           <div className="flex items-center justify-between border-b pb-3 mb-6">
             <div className="flex items-center gap-4">
@@ -402,8 +397,6 @@ export default function GeofencesPage() {
               </CardContent>
             </Card>
           </div>
-        </main>
-      </div>
-    </SidebarProvider>
+     </>
   );
 }

@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	firebase "firebase.google.com/go/v4"
+	"firebase.google.com/go/v4/messaging"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -13,6 +16,7 @@ import (
 	"gitlab.com/realRudraP/beacon/backend/internal/config"
 	"gitlab.com/realRudraP/beacon/backend/internal/database"
 	"gitlab.com/realRudraP/beacon/backend/internal/token"
+	"google.golang.org/api/option"
 )
 
 type Config struct {
@@ -30,19 +34,39 @@ type Server struct {
 	tokenMaker token.Maker
 	AppConfig  *config.AppConfig
 	EnvConfig  *config.EnvConfig
+	fcmClient  *messaging.Client
 
 	REFRESH_TOKEN_HASH_SECRET string
 }
 
 func NewServer(cfg Config) *Server {
 	store := database.New(cfg.DB)
-	return &Server{
+	s := &Server{
 		store:      store,
 		logger:     cfg.Logger,
 		tokenMaker: cfg.TokenMaker,
 		AppConfig:  cfg.AppConfig,
 		EnvConfig:  cfg.EnvConfig,
 	}
+	credsPath := os.Getenv("FIREBASE_CREDENTIALS_FILE")
+	if credsPath != "" {
+		opt := option.WithCredentialsFile(credsPath)
+		app, err := firebase.NewApp(context.Background(), nil, opt)
+		if err != nil {
+			s.logger.Error("failed to create Firebase app", "err", err)
+		} else {
+			fcmClient, err := app.Messaging(context.Background())
+			if err != nil {
+				s.logger.Error("failed to create FCM client", "err", err)
+			} else {
+				s.fcmClient = fcmClient
+				s.logger.Info("FCM client initialized successfully")
+			}
+		}
+	} else {
+		s.logger.Warn("FIREBASE_CREDENTIALS_FILE not set, notifications are disabled")
+	}
+	return s
 }
 
 func NewTestServer(store Store, tokenMaker token.Maker) *Server {
@@ -105,6 +129,7 @@ func (s *Server) Routes() http.Handler {
 				r.Post("/", s.RegisterUser)
 				r.Patch("/{username}", s.EditUser)
 				r.Delete("/{username}", s.softDeleteUser)
+				r.Post("/fcm-token", s.handleUpdateFCMToken)
 			})
 		})
 		r.Route("/auth", func(r chi.Router) {
@@ -125,6 +150,12 @@ func (s *Server) Routes() http.Handler {
 			r.Use(s.Authenticate)
 			r.Get("/", s.HandleGetSyncConfig)
 			r.Put("/", s.HandleUpdateSyncConfig)
+		})
+		r.Route("/cash", func(r chi.Router) {
+			r.Use(s.Authenticate)
+			r.Get("/transactions", s.handleGetMyCashTransactions)
+			r.Post("/transactions", s.handleCreateCashTransaction)
+			r.Get("/summary", s.handleGetWorkersCashSummary)
 		})
 	})
 

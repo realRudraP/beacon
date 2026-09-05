@@ -12,6 +12,7 @@ import dev.realrudrap.beacon.work.AttendanceSyncWorker
 import dev.realrudrap.beacon.work.NotificationScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -24,47 +25,51 @@ class MainViewModel @Inject constructor(
     private val configRepository: ConfigRepository,
     private val notificationScheduler: NotificationScheduler,
     private val workManager: WorkManager
-): ViewModel() {
-    private val _startDestination = MutableStateFlow<String?>(null)
-    val startDestination : StateFlow<String?> = _startDestination
+) : ViewModel() {
+
+    private val _isLoggedIn = MutableStateFlow<Boolean?>(null)
+    val isLoggedIn: StateFlow<Boolean?> = _isLoggedIn.asStateFlow()
 
     init {
         checkSession()
+
         viewModelScope.launch {
             refreshConfigAndSchedule()
         }
+
         viewModelScope.launch {
             authEventBus.events.collect { event ->
-                when(event){
+                when (event) {
                     is AuthEvent.Unauthorized,
-                    is AuthEvent.Logout->{
+                    is AuthEvent.Logout -> {
                         handleLogout()
                     }
-
                 }
             }
         }
+
         AttendanceSyncWorker.schedulePeriodicSync(workManager)
     }
 
-    private fun checkSession(){
-        val isLoggedIn = tokenManager.getRefreshToken() != null
-
-        _startDestination.value = if (isLoggedIn) "dashboard" else "auth"
+    fun checkSession() {
+        val hasToken = tokenManager.getRefreshToken() != null
+        _isLoggedIn.value = hasToken
     }
-    private fun handleLogout(){
+
+    private fun handleLogout() {
         tokenManager.clearTokens()
-        _startDestination.value = "auth"
+        _isLoggedIn.value = false
     }
 
     private suspend fun refreshConfigAndSchedule() {
-        configRepository.refreshConfig()
-        configRepository.config
-            .filterNotNull()
-            .first()
-            .let { config ->
-                notificationScheduler.schedule(config.notificationRules ?: emptyList())
-            }
+        try {
+            configRepository.refreshConfig()
+            configRepository.config
+                .filterNotNull()
+                .first()
+                .let { config ->
+                    notificationScheduler.schedule(config.notificationRules ?: emptyList())
+                }
+        } catch (_: Exception) {}
     }
-
 }

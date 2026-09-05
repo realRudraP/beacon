@@ -248,8 +248,10 @@ func (s *Server) handleUpdateAttendance(w http.ResponseWriter, r *http.Request) 
 
 	fieldErrors := validateUpdateAttendanceRequest(req)
 
+	hasClockOut := req.ClockOutTime != ""
 	var clockOutTime time.Time
-	if req.ClockOutTime != "" {
+	if hasClockOut {
+		var err error
 		clockOutTime, err = time.Parse(clockTimeLayout, req.ClockOutTime)
 		if err != nil {
 			fieldErrors["clock_out_time"] = "Clock-out time must be a valid RFC3339 timestamp"
@@ -303,7 +305,7 @@ func (s *Server) handleUpdateAttendance(w http.ResponseWriter, r *http.Request) 
 	updated, err := s.store.UpdateAttendanceRecord(r.Context(), database.UpdateAttendanceRecordParams{
 		ID:               recordID,
 		CheckInPhotoUri:  stringToPGText(req.ClockInPhotoURI),
-		CheckOut:         convertTimeToPGTimeTz(clockOutTime),
+		CheckOut:         optionalTimeToPGTimeTz(clockOutTime, hasClockOut),
 		CheckOutPhotoUri: stringToPGText(req.ClockOutPhotoURI),
 		CheckOutLat:      convertFloat64ToPGFloat8(req.ClockOutLat),
 		CheckOutLong:     convertFloat64ToPGFloat8(req.ClockOutLong),

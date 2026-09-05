@@ -31,6 +31,7 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - beacon_uploads:/app/data/uploads/photos
+      - ./beacon_firebase_key.json:/app/data/firebase_key.json:ro
   web-admin-panel:
     build:
       context: ./web

@@ -19,42 +19,56 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.lifecycleScope
+import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.AndroidEntryPoint
+import dev.realrudrap.beacon.domain.repository.UserRepository
 import dev.realrudrap.beacon.ui.MainViewModel
 import dev.realrudrap.beacon.ui.auth.LoginScreen
 import dev.realrudrap.beacon.ui.dashboard.DashboardScreen
 import dev.realrudrap.beacon.ui.permissions.PermissionDashboardScreen
 import dev.realrudrap.beacon.ui.theme.BeaconTheme
+import kotlinx.coroutines.launch
+import timber.log.Timber
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var userRepository: UserRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        registerFcmToken()
+
         setContent {
             val viewModel: MainViewModel = hiltViewModel()
-            val startDestination by viewModel.startDestination.collectAsState()
-            val navController = rememberNavController()
+            val isLoggedIn by viewModel.isLoggedIn.collectAsState()
 
-            // Local state tracking whether the entry gate is cleared
             var allPermissionsGranted by remember { mutableStateOf(false) }
-
 
             fun checkCurrentPermissions(): Boolean {
                 val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-                val hasCamera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-                val hasFineLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                val hasCamera = ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.CAMERA
+                ) == PackageManager.PERMISSION_GRANTED
 
-                val hasBgLocation =
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+                val hasFineLocation = ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+                val hasBgLocation = ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
 
                 val hasNotifications = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                    ContextCompat.checkSelfPermission(
+                        this, Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
                 } else true
 
                 val hasExactAlarm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -64,21 +78,20 @@ class MainActivity : ComponentActivity() {
                 return hasCamera && hasFineLocation && hasBgLocation && hasNotifications && hasExactAlarm
             }
 
-
             LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
                 allPermissionsGranted = checkCurrentPermissions()
             }
 
             BeaconTheme {
                 when {
-
-                    startDestination == null -> {
+                    // 1. Still checking initial session
+                    isLoggedIn == null -> {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
                         }
                     }
 
-
+                    // 2. Permission gate
                     !allPermissionsGranted -> {
                         PermissionDashboardScreen(
                             onAllPermissionsGranted = {
@@ -87,28 +100,38 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    // 3. User is not logged in -> Show Login
+                    isLoggedIn == false -> {
+                        LoginScreen(
+                            onLoginSuccess = {
+                                registerFcmToken()
+                                viewModel.checkSession()
+                            }
+                        )
+                    }
 
+                    // 4. User is logged in -> Show Dashboard
                     else -> {
-                        NavHost(
-                            navController = navController,
-                            startDestination = startDestination!!
-                        ) {
-                            composable("auth") {
-                                LoginScreen(
-                                    onLoginSuccess = {
-                                        navController.navigate("dashboard") {
-                                            popUpTo("auth") { inclusive = true }
-                                        }
-                                    }
-                                )
-                            }
-                            composable("dashboard") {
-                                DashboardScreen()
-                            }
-                        }
+                        DashboardScreen()
                     }
                 }
             }
+        }
+    }
+
+    private fun registerFcmToken() {
+        try {
+            FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                if (!token.isNullOrBlank()) {
+                    lifecycleScope.launch {
+                        userRepository.updateFcmToken(token)
+                    }
+                }
+            }.addOnFailureListener { e ->
+                Timber.w(e, "Failed to fetch FCM token")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Firebase not initialized or missing google-services.json")
         }
     }
 }

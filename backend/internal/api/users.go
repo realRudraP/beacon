@@ -1,8 +1,10 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 
+	"gitlab.com/realRudraP/beacon/backend/internal/database"
 	"gitlab.com/realRudraP/beacon/backend/internal/token"
 )
 
@@ -82,4 +84,36 @@ func (s *Server) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 		Active:        user.Active,
 		WeeklyOffDays: user.WeeklyOffDays,
 	})
+}
+
+type updateFCMTokenRequest struct {
+	FCMToken string `json:"fcm_token"`
+}
+
+func (s *Server) handleUpdateFCMToken(w http.ResponseWriter, r *http.Request) {
+	var req updateFCMTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.FCMToken == "" {
+		s.writeAPIError(w, http.StatusBadRequest, APIError{
+			Code:    ErrCodeInvalidRequest,
+			Message: "fcm_token is required",
+		})
+		return
+	}
+
+	claims := r.Context().Value("authClaims").(*token.Claims)
+
+	err := s.store.UpdateUserFCMToken(r.Context(), database.UpdateUserFCMTokenParams{
+		ID:       claims.UserID,
+		FcmToken: stringToPGText(req.FCMToken),
+	})
+	if err != nil {
+		s.logger.Error("failed to update FCM token", "user_id", claims.UserID, "err", err)
+		s.writeAPIError(w, http.StatusInternalServerError, APIError{
+			Code:    ErrCodeInternalError,
+			Message: "something went wrong",
+		})
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

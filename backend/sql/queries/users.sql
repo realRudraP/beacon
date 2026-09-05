@@ -36,3 +36,13 @@ SELECT * FROM users WHERE active=true ORDER BY created_at DESC;
 UPDATE users
 SET full_name = $2, phone_number = $3, email = $4, role = $5, active = $6, password_hash = COALESCE($7, password_hash), weekly_off_days = COALESCE($8, weekly_off_days), updated_at = now()
 WHERE username = $1 RETURNING *;
+
+-- name: UpdateUserFCMToken :exec
+UPDATE users
+SET fcm_token = $2, updated_at = now()
+WHERE id = $1;
+
+-- name: GetUserFCMToken :one
+SELECT fcm_token
+FROM users
+WHERE id = $1;

@@ -1,0 +1,31 @@
+meta {
+  name: Add Money to Cash Ledger
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{DOMAIN}}{{API_VERSION}}/cash/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InJ1ZHJhIiwidXNlcl9pZCI6Ijk5ZDU2MzRjLTU4OTAtNDVmMC1iNWVlLTk5ODhmN2Y5ZmZmYyIsInRva2VuX3R5cGUiOiJhY2Nlc3MiLCJyb2xlIjoic3VwZXJhZG1pbiIsImlzcyI6ImJlYWNvbiIsImV4cCI6MTc4ODUzMzU4OCwiaWF0IjoxNzg4NTMyNjg4LCJqdGkiOiJlZWJkOTJiZS1kOWE1LTRlYmEtYmY3NC02NDU0ZjZkMmM1ZGMifQ.fTUB7oxl0uUXhK55JrtkuqFAyRk0dxmqud8YAsA3OSo
+}
+
+body:json {
+  {
+    "type":"credit",
+    "category":"salary",
+    "id": "d962ef41-02a2-4caa-b672-40aa1359226e",
+    "amount": 20,
+    "user_id":"756f04de-4282-4b64-a03e-95ddc9569ad2"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+  forwardAuthorizationHeader: false
+}

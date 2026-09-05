@@ -58,4 +58,14 @@ type Store interface {
 	GetOpenAttendanceRecordsForDate(ctx context.Context, date pgtype.Date) ([]database.GetOpenAttendanceRecordsForDateRow, error)
 	GetStaleOpenAttendanceRecords(ctx context.Context, createdAt pgtype.Timestamptz) ([]database.GetStaleOpenAttendanceRecordsRow, error)
 	GetAttendanceRecordsByUserId(ctx context.Context, arg database.GetAttendanceRecordsByUserIdParams) ([]database.GetAttendanceRecordsByUserIdRow, error)
+
+	// Cash Transactions
+	GetCashTransactionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.CashTransaction, error)
+	GetCashBalanceByUserID(ctx context.Context, userID uuid.UUID) (float64, error)
+	InsertCashTransaction(ctx context.Context, arg database.InsertCashTransactionParams) (database.CashTransaction, error)
+	GetCashTransactionByID(ctx context.Context, id uuid.UUID) (database.CashTransaction, error)
+	GetAllWorkersCashSummary(ctx context.Context) ([]database.GetAllWorkersCashSummaryRow, error)
+
+	UpdateUserFCMToken(ctx context.Context, arg database.UpdateUserFCMTokenParams) error
+	GetUserFCMToken(ctx context.Context, userID uuid.UUID) (pgtype.Text, error)
 }

@@ -13,6 +13,9 @@ import NotFound from "./pages/NotFound";
 import GeofenceEditor from "./pages/Geofences";
 import SettingsPage from "./pages/Settings";
 import AttendancePage from "./pages/Attendance";
+import CashPage from "./pages/CashPage";
+import WorkerCashDetailPage from "./pages/WorkerCashDetailPage";
+import { AppLayout } from "./components/AppLayout";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { accessToken } = useAuthStore();
@@ -29,9 +32,11 @@ export default function App() {
   const { accessToken } = useAuthStore();
   const { fetchUser } = useUserStore();
   const { needsSetup } = useSystemState();
+
   useEffect(() => {
     if (accessToken && !needsSetup) fetchUser();
   }, [accessToken, needsSetup, fetchUser]);
+
   return (
     <BrowserRouter>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
@@ -43,6 +48,7 @@ export default function App() {
             </>
           ) : (
             <>
+              {/* Public & Auth Routes */}
               <Route
                 path="/"
                 element={
@@ -55,47 +61,25 @@ export default function App() {
               />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
+
+              {/* Protected Admin Routes with Shared AppLayout */}
+              <Route
+                element={
+                  <AdminRoute>
+                    <AppLayout />
+                  </AdminRoute>
+                }
+              >
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/attendance" element={<AttendancePage />} />
+                <Route path="/cash" element={<CashPage />} />
+                <Route path="/cash/:userId" element={<WorkerCashDetailPage />} />
+                <Route path="/users" element={<UsersPage />} />
+                <Route path="/geofences" element={<GeofenceEditor />} />
+                <Route path="/settings" element={<SettingsPage />} />
+              </Route>
+
               <Route path="/not-found" element={<NotFound />} />
-              <Route
-                path="/geofences"
-                element={
-                  <AdminRoute>
-                    <GeofenceEditor />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  <AdminRoute>
-                    <Dashboard />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/users"
-                element={
-                  <AdminRoute>
-                    <UsersPage />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <AdminRoute>
-                    <SettingsPage />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/attendance"
-                element={
-                  <AdminRoute>
-                    <AttendancePage />
-                  </AdminRoute>
-                }
-              />
               <Route path="*" element={<Navigate to="/not-found" replace />} />
             </>
           )}

@@ -31,7 +31,7 @@ INSERT INTO users(
     VALUES (
         $1, $2, $3, $4, 'superadmin'
     )
-RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days
+RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days, fcm_token
 `
 
 type CreateSuperAdminParams struct {
@@ -62,6 +62,7 @@ func (q *Queries) CreateSuperAdmin(ctx context.Context, arg CreateSuperAdminPara
 		&i.UpdatedAt,
 		&i.LastLogin,
 		&i.WeeklyOffDays,
+		&i.FcmToken,
 	)
 	return i, err
 }
@@ -72,7 +73,7 @@ INSERT INTO users(
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
-RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days
+RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days, fcm_token
 `
 
 type CreateUserParams struct {
@@ -107,12 +108,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.LastLogin,
 		&i.WeeklyOffDays,
+		&i.FcmToken,
 	)
 	return i, err
 }
 
 const getAllUsers = `-- name: GetAllUsers :many
-SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days FROM users WHERE active=true ORDER BY created_at DESC
+SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days, fcm_token FROM users WHERE active=true ORDER BY created_at DESC
 `
 
 func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
@@ -137,6 +139,7 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 			&i.UpdatedAt,
 			&i.LastLogin,
 			&i.WeeklyOffDays,
+			&i.FcmToken,
 		); err != nil {
 			return nil, err
 		}
@@ -149,7 +152,7 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days FROM users WHERE id = $1
+SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days, fcm_token FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -168,12 +171,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.UpdatedAt,
 		&i.LastLogin,
 		&i.WeeklyOffDays,
+		&i.FcmToken,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days FROM users WHERE username = $1
+SELECT id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days, fcm_token FROM users WHERE username = $1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
@@ -192,8 +196,22 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.UpdatedAt,
 		&i.LastLogin,
 		&i.WeeklyOffDays,
+		&i.FcmToken,
 	)
 	return i, err
+}
+
+const getUserFCMToken = `-- name: GetUserFCMToken :one
+SELECT fcm_token
+FROM users
+WHERE id = $1
+`
+
+func (q *Queries) GetUserFCMToken(ctx context.Context, id uuid.UUID) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getUserFCMToken, id)
+	var fcm_token pgtype.Text
+	err := row.Scan(&fcm_token)
+	return fcm_token, err
 }
 
 const updateLastLogin = `-- name: UpdateLastLogin :exec
@@ -210,7 +228,7 @@ func (q *Queries) UpdateLastLogin(ctx context.Context, id uuid.UUID) error {
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET full_name = $2, phone_number = $3, email = $4, role = $5, active = $6, password_hash = COALESCE($7, password_hash), weekly_off_days = COALESCE($8, weekly_off_days), updated_at = now()
-WHERE username = $1 RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days
+WHERE username = $1 RETURNING id, username, password_hash, role, full_name, phone_number, email, active, created_at, updated_at, last_login, weekly_off_days, fcm_token
 `
 
 type UpdateUserParams struct {
@@ -249,6 +267,23 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.LastLogin,
 		&i.WeeklyOffDays,
+		&i.FcmToken,
 	)
 	return i, err
+}
+
+const updateUserFCMToken = `-- name: UpdateUserFCMToken :exec
+UPDATE users
+SET fcm_token = $2, updated_at = now()
+WHERE id = $1
+`
+
+type UpdateUserFCMTokenParams struct {
+	ID       uuid.UUID   `json:"id"`
+	FcmToken pgtype.Text `json:"fcm_token"`
+}
+
+func (q *Queries) UpdateUserFCMToken(ctx context.Context, arg UpdateUserFCMTokenParams) error {
+	_, err := q.db.Exec(ctx, updateUserFCMToken, arg.ID, arg.FcmToken)
+	return err
 }
