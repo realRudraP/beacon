@@ -41,7 +41,7 @@ object NetworkModule {
         val contentType = "application/json".toMediaType()
 
         return Retrofit.Builder()
-            .baseUrl("http://192.168.1.79:8080/api/v1/")
+            .baseUrl("https://beacon.realrudrap.dev/api/v1/")
             .client(okHttpClient)
             .addConverterFactory(networkJson.asConverterFactory(contentType))
             .build()
