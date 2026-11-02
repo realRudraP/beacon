@@ -2,6 +2,7 @@ package dev.realrudrap.beacon.work
 
 import android.content.Context
 import androidx.hilt.work.HiltWorker
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -19,11 +20,14 @@ import dev.realrudrap.beacon.data.local.entity.AttendanceSyncStatus
 import dev.realrudrap.beacon.data.remote.AttendanceApiService
 import dev.realrudrap.beacon.data.remote.dto.MarkAttendanceRequest
 import dev.realrudrap.beacon.data.remote.dto.UpdateAttendanceRequest
+import dev.realrudrap.beacon.domain.provider.CrashReportingProvider
+import kotlinx.coroutines.CancellationException
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import timber.log.Timber
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 @HiltWorker
@@ -32,25 +36,38 @@ class AttendanceSyncWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val attendanceDao: AttendanceDao,
     private val attendanceApiService: AttendanceApiService,
+    private val crashReporter: CrashReportingProvider,
 ) : CoroutineWorker(context, params) {
+
+    private enum class SyncResult { Success, Retry, Failed }
+
+    private sealed interface PhotoResult {
+        data class Uploaded(val uri: String?) : PhotoResult
+        data object Retry : PhotoResult
+        data object Skip : PhotoResult
+    }
 
     override suspend fun doWork(): Result {
         val pending = attendanceDao.getPendingRecords()
         Timber.d("AttendanceSyncWorker: ${pending.size} pending records")
+        crashReporter.log("ATTENDANCE_SYNC pending=${pending.size}")
 
         if (pending.isEmpty()) return Result.success()
 
         // Process each record independently — one failure doesn't block others
-        var anyFailed = false
+        var shouldRetry = false
         for (record in pending) {
-            val success = syncRecord(record)
-            if (!success) anyFailed = true
+            when (syncRecord(record)) {
+                SyncResult.Success -> Unit
+                SyncResult.Retry -> shouldRetry = true
+                SyncResult.Failed -> Unit
+            }
         }
 
-        return if (anyFailed) Result.retry() else Result.success()
+        return if (shouldRetry) Result.retry() else Result.success()
     }
 
-    private suspend fun syncRecord(record: AttendanceEntity): Boolean {
+    private suspend fun syncRecord(record: AttendanceEntity): SyncResult {
         return try {
             // Step 1 — POST attendance record first, no photo URIs yet
             val markRequest = MarkAttendanceRequest(
@@ -67,15 +84,21 @@ class AttendanceSyncWorker @AssistedInject constructor(
 
             val markResponse = attendanceApiService.markAttendance(markRequest)
             if (!markResponse.isSuccessful && markResponse.code() != 409) {
-                Timber.e("AttendanceSyncWorker: markAttendance failed ${markResponse.code()} for ${record.id}")
-                attendanceDao.updateSyncStatus(record.id, AttendanceSyncStatus.FAILED.name)
-                return false
+                return handleHttpFailure("markAttendance", record.id, markResponse.code())
             }
 
             // Step 2 — record exists on server, now upload clock-in photo
-            val clockInPhotoUri = record.clockInPhotoServerUri
-                ?: uploadPhoto(record.id, record.clockInPhotoLocalPath, "in")
-                    ?.also { uri -> attendanceDao.updateClockInPhotoServerUri(record.id, uri) }
+            var clockInPhotoUri = record.clockInPhotoServerUri
+            if (clockInPhotoUri == null) {
+                when (val result = uploadPhoto(record.id, record.clockInPhotoLocalPath, "in")) {
+                    is PhotoResult.Uploaded -> {
+                        clockInPhotoUri = result.uri
+                        result.uri?.let { attendanceDao.updateClockInPhotoServerUri(record.id, it) }
+                    }
+                    PhotoResult.Retry -> return SyncResult.Retry
+                    PhotoResult.Skip -> Unit
+                }
+            }
 
             // Step 3 — PATCH with clock-in photo URI if we got one
             // Also handles clock-out if it exists
@@ -83,11 +106,17 @@ class AttendanceSyncWorker @AssistedInject constructor(
                     && record.clockOutLat != null
                     && record.clockOutLong != null
 
-            val clockOutPhotoUri = if (hasClockOut) {
-                record.clockOutPhotoServerUri
-                    ?: uploadPhoto(record.id, record.clockOutPhotoLocalPath, "out")
-                        ?.also { uri -> attendanceDao.updateClockOutPhotoServerUri(record.id, uri) }
-            } else null
+            var clockOutPhotoUri = record.clockOutPhotoServerUri
+            if (hasClockOut && clockOutPhotoUri == null) {
+                when (val result = uploadPhoto(record.id, record.clockOutPhotoLocalPath, "out")) {
+                    is PhotoResult.Uploaded -> {
+                        clockOutPhotoUri = result.uri
+                        result.uri?.let { attendanceDao.updateClockOutPhotoServerUri(record.id, it) }
+                    }
+                    PhotoResult.Retry -> return SyncResult.Retry
+                    PhotoResult.Skip -> Unit
+                }
+            }
 
             if (clockInPhotoUri != null || hasClockOut) {
                 val updateRequest = UpdateAttendanceRequest(
@@ -99,37 +128,67 @@ class AttendanceSyncWorker @AssistedInject constructor(
                 )
                 val updateResponse = attendanceApiService.updateAttendance(record.id, updateRequest)
                 if (!updateResponse.isSuccessful) {
-                    Timber.e("AttendanceSyncWorker: updateAttendance failed ${updateResponse.code()} for ${record.id}")
-                    attendanceDao.updateSyncStatus(record.id, AttendanceSyncStatus.FAILED.name)
-                    return false
+                    return handleHttpFailure("updateAttendance", record.id, updateResponse.code())
                 }
             }
 
             attendanceDao.updateSyncStatus(record.id, AttendanceSyncStatus.SYNCED.name)
             cleanupLocalPhotos(record)
             Timber.d("AttendanceSyncWorker: record ${record.id} synced successfully")
-            true
+            crashReporter.log("ATTENDANCE_SYNC success id=${record.id}")
+            SyncResult.Success
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            Timber.e(e, "AttendanceSyncWorker: network exception syncing record ${record.id}")
+            crashReporter.log("ATTENDANCE_SYNC network_error id=${record.id} error=${e.javaClass.simpleName}")
+            SyncResult.Retry
         } catch (e: Exception) {
             Timber.e(e, "AttendanceSyncWorker: exception syncing record ${record.id}")
+            crashReporter.log("ATTENDANCE_SYNC failed id=${record.id} error=${e.javaClass.simpleName}")
+            crashReporter.recordException(e)
             attendanceDao.updateSyncStatus(record.id, AttendanceSyncStatus.FAILED.name)
-            false
+            SyncResult.Failed
         }
+    }
+
+    private suspend fun handleHttpFailure(
+        operation: String,
+        recordId: String,
+        code: Int
+    ): SyncResult {
+        val message = "ATTENDANCE_SYNC $operation id=$recordId http=$code"
+        Timber.e("AttendanceSyncWorker: $operation failed $code for $recordId")
+        crashReporter.log(message)
+
+        if (isRetryable(code)) {
+            if (code == 401 || code == 403) {
+                crashReporter.recordException(SyncAuthException(message))
+            }
+            // Leave the record PENDING so the next worker run retries it.
+            return SyncResult.Retry
+        }
+
+        attendanceDao.updateSyncStatus(recordId, AttendanceSyncStatus.FAILED.name)
+        return SyncResult.Failed
     }
 
     /**
      * Uploads a photo file to the server and returns the server URI.
-     * Returns null if the file doesn't exist or upload fails.
+     * Network/auth failures return [PhotoResult.Retry] so the record is not
+     * silently synced without its photo. Missing files are skipped.
      */
     private suspend fun uploadPhoto(
         recordId: String,
         localPath: String?,
         type: String // "in" or "out"
-    ): String? {
-        if (localPath == null) return null
+    ): PhotoResult {
+        if (localPath == null) return PhotoResult.Skip
         val file = File(localPath)
         if (!file.exists()) {
             Timber.w("AttendanceSyncWorker: photo file not found at $localPath")
-            return null
+            crashReporter.log("ATTENDANCE_SYNC photo_missing id=$recordId type=$type")
+            return PhotoResult.Skip
         }
 
         return try {
@@ -137,15 +196,30 @@ class AttendanceSyncWorker @AssistedInject constructor(
             val part = MultipartBody.Part.createFormData("photo", file.name, requestBody)
             val response = attendanceApiService.uploadAttendancePhoto(recordId, type, part)
             if (response.isSuccessful) {
-                response.body()?.photoUrl
+                PhotoResult.Uploaded(response.body()?.photoUrl)
+            } else if (isRetryable(response.code())) {
+                Timber.e("AttendanceSyncWorker: photo upload retryable ${response.code()} for $recordId type=$type")
+                crashReporter.log("ATTENDANCE_SYNC photo_retry id=$recordId type=$type http=${response.code()}")
+                PhotoResult.Retry
             } else {
                 Timber.e("AttendanceSyncWorker: photo upload failed ${response.code()} for $recordId type=$type")
-                null
+                crashReporter.log("ATTENDANCE_SYNC photo_failed id=$recordId type=$type http=${response.code()}")
+                PhotoResult.Skip
             }
+        } catch (e: IOException) {
+            Timber.e(e, "AttendanceSyncWorker: photo upload network exception for $recordId type=$type")
+            crashReporter.log("ATTENDANCE_SYNC photo_network_error id=$recordId type=$type")
+            PhotoResult.Retry
         } catch (e: Exception) {
             Timber.e(e, "AttendanceSyncWorker: photo upload exception for $recordId type=$type")
-            null
+            crashReporter.recordException(e)
+            PhotoResult.Skip
         }
+    }
+
+    private fun isRetryable(code: Int): Boolean {
+        return code == 401 || code == 403 || code == 408 || code == 425 ||
+                code == 429 || code >= 500
     }
 
     /**
@@ -162,6 +236,8 @@ class AttendanceSyncWorker @AssistedInject constructor(
         }
     }
 
+    private class SyncAuthException(message: String) : Exception(message)
+
     companion object {
         private const val PERIODIC_WORK_NAME = "attendance_sync_periodic"
         private const val ONE_TIME_WORK_NAME = "attendance_sync_immediate"
@@ -177,6 +253,7 @@ class AttendanceSyncWorker @AssistedInject constructor(
         fun schedulePeriodicSync(workManager: WorkManager) {
             val request = PeriodicWorkRequestBuilder<AttendanceSyncWorker>(3, TimeUnit.HOURS)
                 .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.MINUTES)
                 .build()
             workManager.enqueueUniquePeriodicWork(
                 PERIODIC_WORK_NAME,
@@ -192,6 +269,7 @@ class AttendanceSyncWorker @AssistedInject constructor(
         fun syncNow(workManager: WorkManager) {
             val request = OneTimeWorkRequestBuilder<AttendanceSyncWorker>()
                 .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.MINUTES)
                 .build()
             workManager.enqueueUniqueWork(
                 ONE_TIME_WORK_NAME,

@@ -30,6 +30,9 @@ interface AttendanceDao {
     @Query("SELECT * FROM attendance_records WHERE syncStatus = 'PENDING'")
     suspend fun getPendingRecords(): List<AttendanceEntity>
 
+    @Query("UPDATE attendance_records SET syncStatus = 'PENDING' WHERE syncStatus = 'FAILED'")
+    suspend fun requeueFailedRecords()
+
     @Query("SELECT * FROM attendance_records WHERE clockInTime BETWEEN :startOfMonth AND :endOfMonth")
     suspend fun getRecordsForMonth(startOfMonth: String, endOfMonth: String): List<AttendanceEntity>
 

@@ -30,6 +30,9 @@ interface CashTransactionDao {
     @Query("SELECT * FROM cash_transactions WHERE syncStatus = 'PENDING'")
     suspend fun getPendingTransactions(): List<CashTransactionEntity>
 
+    @Query("UPDATE cash_transactions SET syncStatus = 'PENDING' WHERE syncStatus = 'FAILED'")
+    suspend fun requeueFailedRecords()
+
     @Query("UPDATE cash_transactions SET syncStatus = :status WHERE id = :id")
     suspend fun updateSyncStatus(id: String, status: String)
 

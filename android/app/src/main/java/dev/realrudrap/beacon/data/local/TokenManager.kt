@@ -24,6 +24,7 @@ class TokenManager @Inject constructor(
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
 
+    @Synchronized
     fun saveTokens(accessToken: String, refreshToken: String) {
         sharedPreferences.edit {
             putString("ACCESS_TOKEN", accessToken)
@@ -32,14 +33,17 @@ class TokenManager @Inject constructor(
         }
     }
 
+    @Synchronized
     fun getAccessToken(): String? = sharedPreferences.getString("ACCESS_TOKEN", null)
+
+    @Synchronized
     fun getRefreshToken(): String? = sharedPreferences.getString("REFRESH_TOKEN", null)
 
+    @Synchronized
     fun clearTokens() {
         sharedPreferences.edit {
             clear()
             apply()
         }
     }
-
 }
