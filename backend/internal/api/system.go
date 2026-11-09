@@ -11,6 +11,7 @@ import (
 
 type getConfigResponse struct {
 	Branding      config.BrandingConfig `json:"branding"`
+	Timezone      string                `json:"timezone"`
 	SetupRequired bool                  `json:"setup_required,omitempty"`
 }
 
@@ -103,8 +104,14 @@ func (s *Server) getConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	timezone := "UTC"
+	if s.AppConfig != nil && s.AppConfig.App.Timezone != "" {
+		timezone = s.AppConfig.App.Timezone
+	}
+
 	resp := getConfigResponse{
 		Branding:      s.AppConfig.Branding,
+		Timezone:      timezone,
 		SetupRequired: setup_required,
 	}
 	s.writeJSON(w, http.StatusOK, resp)

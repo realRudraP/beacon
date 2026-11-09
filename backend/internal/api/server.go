@@ -107,6 +107,7 @@ func (s *Server) Routes() http.Handler {
 				r.Get("/", s.handleGetMyAttendance)
 				r.Patch("/{id}", s.handleUpdateAttendance)
 				r.Post("/photos/{id}", s.HandleUploadAttendancePhoto)
+				r.Post("/location-checks", s.handleIngestLocationChecks)
 			})
 			r.Route("/admin", func(r chi.Router) {
 				r.Use(s.Authenticate)
@@ -116,6 +117,7 @@ func (s *Server) Routes() http.Handler {
 				r.Get("/open", s.handleGetOpenAttendance)
 				r.Get("/absent", s.handleGetAbsentUsers)
 				r.Get("/stale", s.handleGetStaleOpenAttendance)
+				r.Get("/location-checks", s.handleListLocationChecks)
 			})
 		})
 		r.Route("/system", func(r chi.Router) {

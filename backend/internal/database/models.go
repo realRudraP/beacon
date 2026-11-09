@@ -196,6 +196,22 @@ type Geofence struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type LocationCheck struct {
+	ID                  uuid.UUID          `json:"id"`
+	AttendanceRecordID  uuid.UUID          `json:"attendance_record_id"`
+	UserID              uuid.UUID          `json:"user_id"`
+	CapturedAt          pgtype.Timestamptz `json:"captured_at"`
+	Latitude            float64            `json:"latitude"`
+	Longitude           float64            `json:"longitude"`
+	Accuracy            pgtype.Float8      `json:"accuracy"`
+	SequenceNumber      int16              `json:"sequence_number"`
+	WithinGeofence      bool               `json:"within_geofence"`
+	NearestGeofenceID   pgtype.UUID        `json:"nearest_geofence_id"`
+	NearestGeofenceName pgtype.Text        `json:"nearest_geofence_name"`
+	DistanceMeters      pgtype.Float8      `json:"distance_meters"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
 type RefreshToken struct {
 	TokenHash     string             `json:"token_hash"`
 	UserID        uuid.UUID          `json:"user_id"`

@@ -10,6 +10,9 @@ app:
   environment: "development"
   # The port on which the Go application will listen (Docker internal)
   port: 8080
+  # IANA timezone used to interpret and display dates in the admin panel.
+  # Timestamps are always stored in UTC regardless of this setting.
+  timezone: "UTC"
 
 # --------------------------------
 # BRANDING & UI

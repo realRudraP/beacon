@@ -142,3 +142,32 @@ func isWithinAnyGeofence(lat, lon float64, geofences []database.Geofence) bool {
 	}
 	return false
 }
+
+// geofenceBoundaryDistanceMeters returns the distance from the point to the
+// nearest edge of the geofence, or 0 when the point is inside it.
+func geofenceBoundaryDistanceMeters(lat, lon float64, g database.Geofence) float64 {
+	distance := haversineDistanceMeters(lat, lon, g.CenterLat, g.CenterLng) - g.Radius
+	if distance < 0 {
+		return 0
+	}
+	return distance
+}
+
+// nearestGeofence reports membership in any geofence and identifies the closest
+// one. When geofences is empty, all returned values are zero/false.
+func nearestGeofence(lat, lon float64, geofences []database.Geofence) (id uuid.UUID, name string, distanceMeters float64, within bool) {
+	first := true
+	for _, g := range geofences {
+		distance := geofenceBoundaryDistanceMeters(lat, lon, g)
+		if first || distance < distanceMeters {
+			first = false
+			id = g.ID
+			name = g.Name
+			distanceMeters = distance
+		}
+		if distance == 0 {
+			within = true
+		}
+	}
+	return id, name, distanceMeters, within
+}

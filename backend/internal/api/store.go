@@ -59,6 +59,12 @@ type Store interface {
 	GetStaleOpenAttendanceRecords(ctx context.Context, createdAt pgtype.Timestamptz) ([]database.GetStaleOpenAttendanceRecordsRow, error)
 	GetAttendanceRecordsByUserId(ctx context.Context, arg database.GetAttendanceRecordsByUserIdParams) ([]database.GetAttendanceRecordsByUserIdRow, error)
 
+	// Location Checks
+	InsertLocationCheck(ctx context.Context, arg database.InsertLocationCheckParams) (database.LocationCheck, error)
+	GetLocationCheckByID(ctx context.Context, id uuid.UUID) (database.LocationCheck, error)
+	ListLocationChecks(ctx context.Context, arg database.ListLocationChecksParams) ([]database.ListLocationChecksRow, error)
+	CountLocationChecks(ctx context.Context, arg database.CountLocationChecksParams) (int64, error)
+
 	// Cash Transactions
 	GetCashTransactionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.CashTransaction, error)
 	GetCashBalanceByUserID(ctx context.Context, userID uuid.UUID) (float64, error)
