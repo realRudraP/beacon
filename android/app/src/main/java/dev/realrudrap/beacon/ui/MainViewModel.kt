@@ -9,6 +9,8 @@ import dev.realrudrap.beacon.data.remote.AuthEvent
 import dev.realrudrap.beacon.data.remote.AuthEventBus
 import dev.realrudrap.beacon.domain.repository.ConfigRepository
 import dev.realrudrap.beacon.work.AttendanceSyncWorker
+import dev.realrudrap.beacon.work.LocationCheckScheduler
+import dev.realrudrap.beacon.work.LocationCheckSyncWorker
 import dev.realrudrap.beacon.work.NotificationScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +26,7 @@ class MainViewModel @Inject constructor(
     private val authEventBus: AuthEventBus,
     private val configRepository: ConfigRepository,
     private val notificationScheduler: NotificationScheduler,
+    private val locationCheckScheduler: LocationCheckScheduler,
     private val workManager: WorkManager
 ) : ViewModel() {
 
@@ -49,6 +52,7 @@ class MainViewModel @Inject constructor(
         }
 
         AttendanceSyncWorker.schedulePeriodicSync(workManager)
+        LocationCheckSyncWorker.schedulePeriodicSync(workManager)
     }
 
     fun checkSession() {
@@ -58,6 +62,7 @@ class MainViewModel @Inject constructor(
 
     private fun handleLogout() {
         tokenManager.clearTokens()
+        locationCheckScheduler.cancelAll()
         _isLoggedIn.value = false
     }
 

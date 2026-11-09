@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ImageOff,
   X,
+  MapPin,
 } from "lucide-react";
 
 
@@ -46,6 +47,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+// Leaflet (used by the Location Checks map)
+import {
+  MapContainer,
+  TileLayer,
+  Circle,
+  CircleMarker,
+  useMap,
+} from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+
 // ---------------------------------------------------------------------------
 // Types — mirror the Go response DTOs in internal/api (attendance_admin.go)
 // ---------------------------------------------------------------------------
@@ -58,11 +69,38 @@ interface AttendanceRecordDTO {
   check_in_photo_uri?: string;
   check_out?: string; // RFC3339
   check_out_photo_uri?: string;
+  location_checks_count?: number;
+  location_checks_within?: number;
 }
 
 interface AttendanceWithUserDTO extends AttendanceRecordDTO {
   full_name: string;
   email: string;
+}
+
+interface LocationCheckDTO {
+  id: string;
+  attendance_record_id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  captured_at: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  sequence_number: number;
+  within_geofence: boolean;
+  nearest_geofence_id?: string;
+  nearest_geofence_name?: string;
+  distance_meters?: number;
+}
+
+interface GeofenceOption {
+  id: string;
+  name: string;
+  center_lat: number;
+  center_lng: number;
+  radius: number;
 }
 
 interface AbsentUser {
@@ -79,6 +117,7 @@ interface UserOption {
 }
 
 const PAGE_SIZE = 20;
+const LOCATION_PAGE_SIZE = 25;
 
 // ---------------------------------------------------------------------------
 // Date helpers — the backend expects and returns DD-MM-YYYY on the wire
@@ -127,6 +166,19 @@ function formatTime(value?: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -336,6 +388,63 @@ function ShiftStatusBadge({
   );
 }
 
+function LocationChecksBadge({
+  count,
+  within,
+}: {
+  count?: number;
+  within?: number;
+}) {
+  if (count === undefined) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  if (count === 0) {
+    return (
+      <Badge variant="outline" className="gap-1 font-normal text-muted-foreground">
+        <MapPin className="h-3 w-3" />
+        0
+      </Badge>
+    );
+  }
+  const inside = within ?? 0;
+  const allInside = inside === count;
+  return (
+    <Badge
+      variant="secondary"
+      title={`${inside} of ${count} location check${count === 1 ? "" : "s"} inside a geofence`}
+      className={
+        allInside
+          ? "gap-1 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 font-normal"
+          : "gap-1 bg-amber-500/15 text-amber-700 hover:bg-amber-500/15 font-normal"
+      }
+    >
+      <MapPin className="h-3 w-3" />
+      {inside}/{count} passed
+    </Badge>
+  );
+}
+
+function FitMapToChecks({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  const key = points.map((p) => p.join(",")).join(";");
+
+  useEffect(() => {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      map.setView(points[0], 16);
+    } else {
+      map.fitBounds(points, { padding: [32, 32], maxZoom: 16 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, key]);
+
+  return null;
+}
+
+function formatCoords(lat: number, lng: number): string {
+  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}
+
 function EmptyState({
   icon,
   title,
@@ -417,6 +526,17 @@ export default function AttendancePage() {
   const [staleShifts, setStaleShifts] = useState<AttendanceWithUserDTO[]>([]);
   const [staleLoading, setStaleLoading] = useState(true);
   const [staleError, setStaleError] = useState<string | null>(null);
+
+  // ----- Location Checks tab -----
+  const [locationUserFilter, setLocationUserFilter] = useState<string>("all");
+  const [locationFromDate, setLocationFromDate] = useState("");
+  const [locationToDate, setLocationToDate] = useState("");
+  const [locationPage, setLocationPage] = useState(0);
+  const [locationChecks, setLocationChecks] = useState<LocationCheckDTO[]>([]);
+  const [locationTotal, setLocationTotal] = useState(0);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [geofences, setGeofences] = useState<GeofenceOption[]>([]);
 
   // ----- Calendar tab -----
   const [calendarUserId, setCalendarUserId] = useState<string>("");
@@ -533,6 +653,46 @@ export default function AttendancePage() {
     fetchStaleShifts();
   }, []);
 
+  // ----- fetch: Location Checks -----
+  async function fetchLocationChecks() {
+    setLocationLoading(true);
+    setLocationError(null);
+    try {
+      const params: Record<string, string | number> = {
+        limit: LOCATION_PAGE_SIZE,
+        offset: locationPage * LOCATION_PAGE_SIZE,
+      };
+      if (locationUserFilter !== "all") params.user_id = locationUserFilter;
+      if (locationFromDate) params.from = isoToApiDate(locationFromDate);
+      if (locationToDate) params.to = isoToApiDate(locationToDate);
+
+      const { data } = await api.get<{
+        checks: LocationCheckDTO[];
+        total: number;
+      }>("/attendance/admin/location-checks", { params });
+      setLocationChecks(data.checks ?? []);
+      setLocationTotal(data.total ?? 0);
+    } catch {
+      setLocationError("Could not load location checks. Please try again.");
+    } finally {
+      setLocationLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchLocationChecks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationUserFilter, locationFromDate, locationToDate, locationPage]);
+
+  useEffect(() => {
+    api
+      .get<GeofenceOption[]>("/geofences")
+      .then(({ data }) => setGeofences(data ?? []))
+      .catch(() => {
+        // Non-fatal — the map just won't show geofence circles.
+      });
+  }, []);
+
   // ----- fetch: Calendar (per-employee, per-month) -----
   useEffect(() => {
     if (!calendarUserId) {
@@ -576,6 +736,23 @@ export default function AttendancePage() {
 
   const showingUserColumn = userFilter === "all";
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const locationTotalPages = Math.max(
+    1,
+    Math.ceil(locationTotal / LOCATION_PAGE_SIZE),
+  );
+
+  const locationMapPoints = useMemo<[number, number][]>(
+    () => locationChecks.map((c) => [c.latitude, c.longitude]),
+    [locationChecks],
+  );
+
+  const locationMapCenter = useMemo<[number, number]>(() => {
+    if (locationMapPoints.length > 0) return locationMapPoints[0];
+    if (geofences.length > 0) {
+      return [geofences[0].center_lat, geofences[0].center_lng];
+    }
+    return [28.6139, 77.209];
+  }, [locationMapPoints, geofences]);
 
   const selectedUserName = useMemo(
     () => users.find((u) => u.id === userFilter)?.full_name,
@@ -587,6 +764,13 @@ export default function AttendancePage() {
     setFromDate("");
     setToDate("");
     setPage(0);
+  }
+
+  function resetLocationFilters() {
+    setLocationUserFilter("all");
+    setLocationFromDate("");
+    setLocationToDate("");
+    setLocationPage(0);
   }
 
   const hasActiveFilters = userFilter !== "all" || !!fromDate || !!toDate;
@@ -665,6 +849,10 @@ export default function AttendancePage() {
               <TabsTrigger value="records">
                 <ListChecks className="mr-2 h-4 w-4" />
                 All Records
+              </TabsTrigger>
+              <TabsTrigger value="location">
+                <MapPin className="mr-2 h-4 w-4" />
+                Location Checks
               </TabsTrigger>
               <TabsTrigger value="calendar">
                 <CalendarDays className="mr-2 h-4 w-4" />
@@ -775,7 +963,7 @@ export default function AttendancePage() {
                     }
                   />
                 ) : (
-                  <Table className="min-w-[840px]">
+                  <Table className="min-w-[980px]">
                     <TableHeader>
                       <TableRow>
                         {showingUserColumn && <TableHead>Employee</TableHead>}
@@ -784,6 +972,7 @@ export default function AttendancePage() {
                         <TableHead>Clock Out</TableHead>
                         <TableHead>Duration</TableHead>
                         <TableHead>Photos</TableHead>
+                        <TableHead>Checks</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -827,6 +1016,12 @@ export default function AttendancePage() {
                             </div>
                           </TableCell>
                           <TableCell>
+                            <LocationChecksBadge
+                              count={rec.location_checks_count}
+                              within={rec.location_checks_within}
+                            />
+                          </TableCell>
+                          <TableCell>
                             <ShiftStatusBadge
                               checkIn={rec.check_in}
                               checkOut={rec.check_out}
@@ -865,6 +1060,274 @@ export default function AttendancePage() {
                         setPage((p) => (p + 1 < totalPages ? p + 1 : p))
                       }
                       disabled={page + 1 >= totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ------------------------------ Location Checks ------------------------------ */}
+            <TabsContent value="location" className="mt-4 space-y-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                    <div className="space-y-1.5 flex-1 sm:max-w-[220px]">
+                      <Label className="text-xs text-muted-foreground">
+                        Employee
+                      </Label>
+                      <Select
+                        value={locationUserFilter}
+                        onValueChange={(v) => {
+                          setLocationUserFilter(v);
+                          setLocationPage(0);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All employees" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All employees</SelectItem>
+                          {users.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        From
+                      </Label>
+                      <Input
+                        type="date"
+                        value={locationFromDate}
+                        onChange={(e) => {
+                          setLocationFromDate(e.target.value);
+                          setLocationPage(0);
+                        }}
+                        className="w-full sm:w-[160px]"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        To
+                      </Label>
+                      <Input
+                        type="date"
+                        value={locationToDate}
+                        onChange={(e) => {
+                          setLocationToDate(e.target.value);
+                          setLocationPage(0);
+                        }}
+                        className="w-full sm:w-[160px]"
+                      />
+                    </div>
+
+                    {(locationUserFilter !== "all" ||
+                      !!locationFromDate ||
+                      !!locationToDate) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={resetLocationFilters}
+                        className="gap-1"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Clear filters
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {!locationLoading && !locationError && locationChecks.length > 0 && (
+                <Card className="overflow-hidden">
+                  <div className="h-[280px] sm:h-[340px] w-full">
+                    <MapContainer
+                      center={locationMapCenter}
+                      zoom={15}
+                      scrollWheelZoom={true}
+                      className="h-full w-full"
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+                      <FitMapToChecks points={locationMapPoints} />
+                      {geofences.map((gf) => (
+                        <Circle
+                          key={gf.id}
+                          center={[gf.center_lat, gf.center_lng]}
+                          radius={gf.radius}
+                          pathOptions={{
+                            color: "hsl(var(--primary))",
+                            fillOpacity: 0.08,
+                          }}
+                        />
+                      ))}
+                      {locationChecks.map((check) => (
+                        <CircleMarker
+                          key={check.id}
+                          center={[check.latitude, check.longitude]}
+                          radius={7}
+                          pathOptions={{
+                            color: check.within_geofence
+                              ? "#10b981"
+                              : "#ef4444",
+                            fillColor: check.within_geofence
+                              ? "#10b981"
+                              : "#ef4444",
+                            fillOpacity: 0.85,
+                            weight: 2,
+                          }}
+                        />
+                      ))}
+                    </MapContainer>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4 border-t px-4 py-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      Inside geofence
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-red-500" />
+                      Outside geofence
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full border-2 border-primary" />
+                      Geofence boundary
+                    </span>
+                  </div>
+                </Card>
+              )}
+
+              <div className="rounded-lg border bg-card overflow-x-auto">
+                {locationLoading ? (
+                  <TableSkeletonState label="Loading location checks…" />
+                ) : locationError ? (
+                  <ErrorState
+                    message={locationError}
+                    onRetry={fetchLocationChecks}
+                  />
+                ) : locationChecks.length === 0 ? (
+                  <EmptyState
+                    icon={<MapPin className="h-8 w-8 opacity-30" />}
+                    title="No location checks found"
+                    description="Location checks are captured automatically at fixed intervals during a shift."
+                  />
+                ) : (
+                  <Table className="min-w-[860px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Captured</TableHead>
+                        <TableHead>Check</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Geofence</TableHead>
+                        <TableHead>Distance</TableHead>
+                        <TableHead>Accuracy</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {locationChecks.map((check) => (
+                        <TableRow key={check.id}>
+                          <TableCell>
+                            <EmployeeCell
+                              name={check.full_name}
+                              email={check.email}
+                            />
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm">
+                            {formatDateTime(check.captured_at)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                            #{check.sequence_number}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant={
+                                  check.within_geofence
+                                    ? "secondary"
+                                    : "destructive"
+                                }
+                                className={
+                                  check.within_geofence
+                                    ? "bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 font-normal"
+                                    : "font-normal"
+                                }
+                              >
+                                {check.within_geofence ? "Inside" : "Outside"}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {formatCoords(
+                                  check.latitude,
+                                  check.longitude,
+                                )}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {check.nearest_geofence_name ?? "—"}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                            {check.distance_meters != null
+                              ? `${Math.round(check.distance_meters)} m`
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                            {check.accuracy != null
+                              ? `±${Math.round(check.accuracy)} m`
+                              : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+
+              {!locationLoading && !locationError && locationTotal > 0 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Showing{" "}
+                    {locationPage * LOCATION_PAGE_SIZE + 1}–
+                    {Math.min(
+                      locationTotal,
+                      (locationPage + 1) * LOCATION_PAGE_SIZE,
+                    )}{" "}
+                    of {locationTotal}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setLocationPage((p) => Math.max(0, p - 1))
+                      }
+                      disabled={locationPage === 0}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Prev
+                    </Button>
+                    <span className="text-xs text-muted-foreground px-1">
+                      Page {locationPage + 1} of {locationTotalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setLocationPage((p) =>
+                          p + 1 < locationTotalPages ? p + 1 : p,
+                        )
+                      }
+                      disabled={locationPage + 1 >= locationTotalPages}
                     >
                       Next
                       <ChevronRight className="h-4 w-4" />
@@ -1018,6 +1481,17 @@ export default function AttendancePage() {
                                 <PhotoThumbnail
                                   uri={selectedDayRecord.check_out_photo_uri}
                                   label="Clock-out photo"
+                                />
+                              </div>
+                              <div className="space-y-1.5 sm:col-span-2">
+                                <p className="text-xs text-muted-foreground">
+                                  Location checks passed
+                                </p>
+                                <LocationChecksBadge
+                                  count={selectedDayRecord.location_checks_count}
+                                  within={
+                                    selectedDayRecord.location_checks_within
+                                  }
                                 />
                               </div>
                             </div>

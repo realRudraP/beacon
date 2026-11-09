@@ -218,7 +218,9 @@ func (q *Queries) GetAttendanceRecordsForDateRange(ctx context.Context, arg GetA
 }
 
 const getAttendanceRecordsForDateRangeWithUser = `-- name: GetAttendanceRecordsForDateRangeWithUser :many
-SELECT ar.id, ar.user_id, ar.check_in, ar.check_in_photo_uri, ar.check_in_lat, ar.check_in_long, ar.check_out, ar.check_out_photo_uri, ar.check_out_lat, ar.check_out_long, ar.created_at, ar.updated_at, ar.date, u.full_name, u.email
+SELECT ar.id, ar.user_id, ar.check_in, ar.check_in_photo_uri, ar.check_in_lat, ar.check_in_long, ar.check_out, ar.check_out_photo_uri, ar.check_out_lat, ar.check_out_long, ar.created_at, ar.updated_at, ar.date, u.full_name, u.email,
+       (SELECT COUNT(*) FROM location_checks lc WHERE lc.attendance_record_id = ar.id) AS location_checks_count,
+       (SELECT COUNT(*) FROM location_checks lc WHERE lc.attendance_record_id = ar.id AND lc.within_geofence) AS location_checks_within
 FROM attendance_records ar
 JOIN users u ON u.id = ar.user_id
 WHERE ar.date BETWEEN $1 AND $2
@@ -234,21 +236,23 @@ type GetAttendanceRecordsForDateRangeWithUserParams struct {
 }
 
 type GetAttendanceRecordsForDateRangeWithUserRow struct {
-	ID               uuid.UUID          `json:"id"`
-	UserID           uuid.UUID          `json:"user_id"`
-	CheckIn          pgtype.Timestamptz `json:"check_in"`
-	CheckInPhotoUri  pgtype.Text        `json:"check_in_photo_uri"`
-	CheckInLat       pgtype.Float8      `json:"check_in_lat"`
-	CheckInLong      pgtype.Float8      `json:"check_in_long"`
-	CheckOut         pgtype.Timestamptz `json:"check_out"`
-	CheckOutPhotoUri pgtype.Text        `json:"check_out_photo_uri"`
-	CheckOutLat      pgtype.Float8      `json:"check_out_lat"`
-	CheckOutLong     pgtype.Float8      `json:"check_out_long"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
-	Date             pgtype.Date        `json:"date"`
-	FullName         string             `json:"full_name"`
-	Email            pgtype.Text        `json:"email"`
+	ID                   uuid.UUID          `json:"id"`
+	UserID               uuid.UUID          `json:"user_id"`
+	CheckIn              pgtype.Timestamptz `json:"check_in"`
+	CheckInPhotoUri      pgtype.Text        `json:"check_in_photo_uri"`
+	CheckInLat           pgtype.Float8      `json:"check_in_lat"`
+	CheckInLong          pgtype.Float8      `json:"check_in_long"`
+	CheckOut             pgtype.Timestamptz `json:"check_out"`
+	CheckOutPhotoUri     pgtype.Text        `json:"check_out_photo_uri"`
+	CheckOutLat          pgtype.Float8      `json:"check_out_lat"`
+	CheckOutLong         pgtype.Float8      `json:"check_out_long"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	Date                 pgtype.Date        `json:"date"`
+	FullName             string             `json:"full_name"`
+	Email                pgtype.Text        `json:"email"`
+	LocationChecksCount  int64              `json:"location_checks_count"`
+	LocationChecksWithin int64              `json:"location_checks_within"`
 }
 
 func (q *Queries) GetAttendanceRecordsForDateRangeWithUser(ctx context.Context, arg GetAttendanceRecordsForDateRangeWithUserParams) ([]GetAttendanceRecordsForDateRangeWithUserRow, error) {
@@ -281,6 +285,8 @@ func (q *Queries) GetAttendanceRecordsForDateRangeWithUser(ctx context.Context, 
 			&i.Date,
 			&i.FullName,
 			&i.Email,
+			&i.LocationChecksCount,
+			&i.LocationChecksWithin,
 		); err != nil {
 			return nil, err
 		}
@@ -340,9 +346,12 @@ func (q *Queries) GetAttendanceRecordsForUser(ctx context.Context, arg GetAttend
 }
 
 const getAttendanceRecordsForUserAndDateRange = `-- name: GetAttendanceRecordsForUserAndDateRange :many
-SELECT id, user_id, check_in, check_in_photo_uri, check_in_lat, check_in_long, check_out, check_out_photo_uri, check_out_lat, check_out_long, created_at, updated_at, date FROM attendance_records
-WHERE user_id = $1 AND date BETWEEN $2 AND $3
-ORDER BY date DESC
+SELECT ar.id, ar.user_id, ar.check_in, ar.check_in_photo_uri, ar.check_in_lat, ar.check_in_long, ar.check_out, ar.check_out_photo_uri, ar.check_out_lat, ar.check_out_long, ar.created_at, ar.updated_at, ar.date,
+       (SELECT COUNT(*) FROM location_checks lc WHERE lc.attendance_record_id = ar.id) AS location_checks_count,
+       (SELECT COUNT(*) FROM location_checks lc WHERE lc.attendance_record_id = ar.id AND lc.within_geofence) AS location_checks_within
+FROM attendance_records ar
+WHERE ar.user_id = $1 AND ar.date BETWEEN $2 AND $3
+ORDER BY ar.date DESC
 LIMIT $4 OFFSET $5
 `
 
@@ -354,7 +363,25 @@ type GetAttendanceRecordsForUserAndDateRangeParams struct {
 	Offset int32       `json:"offset"`
 }
 
-func (q *Queries) GetAttendanceRecordsForUserAndDateRange(ctx context.Context, arg GetAttendanceRecordsForUserAndDateRangeParams) ([]AttendanceRecord, error) {
+type GetAttendanceRecordsForUserAndDateRangeRow struct {
+	ID                   uuid.UUID          `json:"id"`
+	UserID               uuid.UUID          `json:"user_id"`
+	CheckIn              pgtype.Timestamptz `json:"check_in"`
+	CheckInPhotoUri      pgtype.Text        `json:"check_in_photo_uri"`
+	CheckInLat           pgtype.Float8      `json:"check_in_lat"`
+	CheckInLong          pgtype.Float8      `json:"check_in_long"`
+	CheckOut             pgtype.Timestamptz `json:"check_out"`
+	CheckOutPhotoUri     pgtype.Text        `json:"check_out_photo_uri"`
+	CheckOutLat          pgtype.Float8      `json:"check_out_lat"`
+	CheckOutLong         pgtype.Float8      `json:"check_out_long"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	Date                 pgtype.Date        `json:"date"`
+	LocationChecksCount  int64              `json:"location_checks_count"`
+	LocationChecksWithin int64              `json:"location_checks_within"`
+}
+
+func (q *Queries) GetAttendanceRecordsForUserAndDateRange(ctx context.Context, arg GetAttendanceRecordsForUserAndDateRangeParams) ([]GetAttendanceRecordsForUserAndDateRangeRow, error) {
 	rows, err := q.db.Query(ctx, getAttendanceRecordsForUserAndDateRange,
 		arg.UserID,
 		arg.Date,
@@ -366,9 +393,9 @@ func (q *Queries) GetAttendanceRecordsForUserAndDateRange(ctx context.Context, a
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AttendanceRecord
+	var items []GetAttendanceRecordsForUserAndDateRangeRow
 	for rows.Next() {
-		var i AttendanceRecord
+		var i GetAttendanceRecordsForUserAndDateRangeRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -383,6 +410,8 @@ func (q *Queries) GetAttendanceRecordsForUserAndDateRange(ctx context.Context, a
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Date,
+			&i.LocationChecksCount,
+			&i.LocationChecksWithin,
 		); err != nil {
 			return nil, err
 		}

@@ -13,6 +13,8 @@ import dev.realrudrap.beacon.domain.repository.AttendanceRepository
 import dev.realrudrap.beacon.domain.repository.ConfigRepository
 import dev.realrudrap.beacon.domain.repository.UserRepository
 import dev.realrudrap.beacon.work.AttendanceSyncWorker
+import dev.realrudrap.beacon.work.LocationCheckScheduler
+import dev.realrudrap.beacon.work.LocationCheckSyncWorker
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -70,6 +72,7 @@ class HomeViewModel @Inject constructor(
     private val locationProvider: LocationProvider,
     private val logger: AppLogger,
     private val workManager: WorkManager,
+    private val locationCheckScheduler: LocationCheckScheduler,
 ) : ViewModel() {
 
     private val _homeUiState = MutableStateFlow(HomeUiState())
@@ -227,6 +230,9 @@ class HomeViewModel @Inject constructor(
             val result = attendanceRepository.clockIn(lat, long, photoLocalPath)
             if (result.isSuccess) {
                 _homeUiState.update { it.copy(clockInState = ClockInState.ClockedIn) }
+                attendanceRepository.getOpenRecord()?.let { record ->
+                    locationCheckScheduler.schedule(record)
+                }
             } else {
                 _events.send(
                     HomeEvent.ShowError(
@@ -284,6 +290,8 @@ class HomeViewModel @Inject constructor(
             val result = attendanceRepository.clockOut(recordId, lat, long, photoLocalPath)
             if (result.isSuccess) {
                 _homeUiState.update { it.copy(clockInState = ClockInState.DoneForTheDay) }
+                locationCheckScheduler.cancelAll()
+                LocationCheckSyncWorker.syncNow(workManager)
             } else {
                 _events.send(
                     HomeEvent.ShowError(

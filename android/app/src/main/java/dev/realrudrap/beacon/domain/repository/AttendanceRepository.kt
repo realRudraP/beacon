@@ -11,6 +11,7 @@ interface AttendanceRepository {
     suspend fun clockOut(id: String, lat: Double, long: Double, photoLocalPath: String?): Result<Unit>
     suspend fun hasClockedInToday(): Boolean
     suspend fun hasClockedOutToday(): Boolean
+    suspend fun getOpenRecord(): AttendanceEntity?
     suspend fun syncPendingRecords(): Result<Unit>
     suspend fun refreshAttendanceHistory(month: YearMonth = YearMonth.now()): Result<Unit>
     suspend fun getRecordsForMonth(startOfMonth: String, endOfMonth: String): List<AttendanceEntity>

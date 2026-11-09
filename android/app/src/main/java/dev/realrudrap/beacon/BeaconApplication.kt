@@ -10,7 +10,9 @@ import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import dev.realrudrap.beacon.data.local.AttendanceDao
 import dev.realrudrap.beacon.data.local.CashTransactionDao
+import dev.realrudrap.beacon.data.local.LocationCheckDao
 import dev.realrudrap.beacon.data.provider.FirebaseCrashlyticsTree
+import dev.realrudrap.beacon.work.LocationCheckScheduler
 import dev.realrudrap.beacon.work.NotificationWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +26,8 @@ class BeaconApplication: Application(), Configuration.Provider{
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var attendanceDao: AttendanceDao
     @Inject lateinit var cashTransactionDao: CashTransactionDao
+    @Inject lateinit var locationCheckDao: LocationCheckDao
+    @Inject lateinit var locationCheckScheduler: LocationCheckScheduler
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -39,6 +43,21 @@ class BeaconApplication: Application(), Configuration.Provider{
         Timber.plant(Timber.DebugTree())
         Timber.plant(FirebaseCrashlyticsTree())
         requeuePreviouslyFailedRecordsOnce()
+        rescheduleLocationChecks()
+    }
+
+    /**
+     * Re-arms alarms for any open shift after app start (the OS clears alarms
+     * on reboot, and the process may have been killed after clock-in).
+     */
+    private fun rescheduleLocationChecks() {
+        applicationScope.launch {
+            try {
+                locationCheckScheduler.rescheduleFromOpenRecord()
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to reschedule background location checks")
+            }
+        }
     }
 
     /**
@@ -48,13 +67,18 @@ class BeaconApplication: Application(), Configuration.Provider{
      */
     private fun requeuePreviouslyFailedRecordsOnce() {
         val prefs = getSharedPreferences(MAINTENANCE_PREFS, Context.MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_FAILED_RECORDS_REQUEUED, false)) return
 
         applicationScope.launch {
             try {
-                attendanceDao.requeueFailedRecords()
-                cashTransactionDao.requeueFailedRecords()
-                prefs.edit().putBoolean(KEY_FAILED_RECORDS_REQUEUED, true).apply()
+                if (!prefs.getBoolean(KEY_FAILED_RECORDS_REQUEUED, false)) {
+                    attendanceDao.requeueFailedRecords()
+                    cashTransactionDao.requeueFailedRecords()
+                    prefs.edit().putBoolean(KEY_FAILED_RECORDS_REQUEUED, true).apply()
+                }
+                if (!prefs.getBoolean(KEY_LOCATION_CHECKS_REQUEUED, false)) {
+                    locationCheckDao.requeueFailedChecks()
+                    prefs.edit().putBoolean(KEY_LOCATION_CHECKS_REQUEUED, true).apply()
+                }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to requeue previously FAILED sync records")
             }
@@ -64,6 +88,7 @@ class BeaconApplication: Application(), Configuration.Provider{
     private companion object {
         const val MAINTENANCE_PREFS = "beacon_maintenance"
         const val KEY_FAILED_RECORDS_REQUEUED = "failed_records_requeued_v1"
+        const val KEY_LOCATION_CHECKS_REQUEUED = "location_checks_requeued_v1"
     }
     private fun createNotificationChannels() {
         val channel = NotificationChannel(

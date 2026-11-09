@@ -27,6 +27,9 @@ interface AttendanceDao {
     @Query("SELECT * FROM attendance_records WHERE date(clockInTime) = date('now')")
     fun getTodayRecord(): Flow<AttendanceEntity?>
 
+    @Query("SELECT * FROM attendance_records WHERE clockOutTime IS NULL ORDER BY clockInTime DESC LIMIT 1")
+    suspend fun getOpenRecord(): AttendanceEntity?
+
     @Query("SELECT * FROM attendance_records WHERE syncStatus = 'PENDING'")
     suspend fun getPendingRecords(): List<AttendanceEntity>
 

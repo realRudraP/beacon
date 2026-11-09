@@ -56,12 +56,18 @@ class AttendanceSyncWorker @AssistedInject constructor(
 
         // Process each record independently — one failure doesn't block others
         var shouldRetry = false
+        var syncedAny = false
         for (record in pending) {
             when (syncRecord(record)) {
-                SyncResult.Success -> Unit
+                SyncResult.Success -> syncedAny = true
                 SyncResult.Retry -> shouldRetry = true
                 SyncResult.Failed -> Unit
             }
+        }
+
+        if (syncedAny) {
+            // Location checks may now be uploaded once their attendance exists server-side.
+            LocationCheckSyncWorker.syncNow(applicationContext)
         }
 
         return if (shouldRetry) Result.retry() else Result.success()

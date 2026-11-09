@@ -25,35 +25,41 @@ func pgTextToString(t pgtype.Text) string {
 }
 
 type attendanceRecordResponse struct {
-	ID               uuid.UUID `json:"id"`
-	UserID           uuid.UUID `json:"user_id"`
-	Date             string    `json:"date"`
-	CheckIn          string    `json:"check_in,omitempty"`
-	CheckInPhotoURI  string    `json:"check_in_photo_uri,omitempty"`
-	CheckOut         string    `json:"check_out,omitempty"`
-	CheckOutPhotoURI string    `json:"check_out_photo_uri,omitempty"`
+	ID                   uuid.UUID `json:"id"`
+	UserID               uuid.UUID `json:"user_id"`
+	Date                 string    `json:"date"`
+	CheckIn              string    `json:"check_in,omitempty"`
+	CheckInPhotoURI      string    `json:"check_in_photo_uri,omitempty"`
+	CheckOut             string    `json:"check_out,omitempty"`
+	CheckOutPhotoURI     string    `json:"check_out_photo_uri,omitempty"`
+	LocationChecksCount  int64     `json:"location_checks_count"`
+	LocationChecksWithin int64     `json:"location_checks_within"`
 }
 
 type attendanceWithUserResponse struct {
-	ID               uuid.UUID `json:"id"`
-	UserID           uuid.UUID `json:"user_id"`
-	FullName         string    `json:"full_name"`
-	Email            string    `json:"email"`
-	Date             string    `json:"date"`
-	CheckIn          string    `json:"check_in,omitempty"`
-	CheckInPhotoURI  string    `json:"check_in_photo_uri,omitempty"`
-	CheckOut         string    `json:"check_out,omitempty"`
-	CheckOutPhotoURI string    `json:"check_out_photo_uri,omitempty"`
+	ID                   uuid.UUID `json:"id"`
+	UserID               uuid.UUID `json:"user_id"`
+	FullName             string    `json:"full_name"`
+	Email                string    `json:"email"`
+	Date                 string    `json:"date"`
+	CheckIn              string    `json:"check_in,omitempty"`
+	CheckInPhotoURI      string    `json:"check_in_photo_uri,omitempty"`
+	CheckOut             string    `json:"check_out,omitempty"`
+	CheckOutPhotoURI     string    `json:"check_out_photo_uri,omitempty"`
+	LocationChecksCount  int64     `json:"location_checks_count"`
+	LocationChecksWithin int64     `json:"location_checks_within"`
 }
 
-func toAttendanceWithUserResponse(id, userID uuid.UUID, fullName string, email pgtype.Text, date pgtype.Date, checkIn, checkOut pgtype.Timestamptz, checkInPhoto, checkOutPhoto pgtype.Text) attendanceWithUserResponse {
+func toAttendanceWithUserResponse(id, userID uuid.UUID, fullName string, email pgtype.Text, date pgtype.Date, checkIn, checkOut pgtype.Timestamptz, checkInPhoto, checkOutPhoto pgtype.Text, locationChecksCount, locationChecksWithin int64) attendanceWithUserResponse {
 	resp := attendanceWithUserResponse{
-		ID:               id,
-		UserID:           userID,
-		FullName:         fullName,
-		Email:            pgTextToString(email),
-		CheckInPhotoURI:  pgTextToString(checkInPhoto),
-		CheckOutPhotoURI: pgTextToString(checkOutPhoto),
+		ID:                   id,
+		UserID:               userID,
+		FullName:             fullName,
+		Email:                pgTextToString(email),
+		CheckInPhotoURI:      pgTextToString(checkInPhoto),
+		CheckOutPhotoURI:     pgTextToString(checkOutPhoto),
+		LocationChecksCount:  locationChecksCount,
+		LocationChecksWithin: locationChecksWithin,
 	}
 	if date.Valid {
 		resp.Date = date.Time.Format(dateLayout)
@@ -67,12 +73,14 @@ func toAttendanceWithUserResponse(id, userID uuid.UUID, fullName string, email p
 	return resp
 }
 
-func toAttendanceRecordResponse(rec database.AttendanceRecord) attendanceRecordResponse {
+func toAttendanceRecordResponse(rec database.GetAttendanceRecordsForUserAndDateRangeRow) attendanceRecordResponse {
 	resp := attendanceRecordResponse{
-		ID:               rec.ID,
-		UserID:           rec.UserID,
-		CheckInPhotoURI:  pgTextToString(rec.CheckInPhotoUri),
-		CheckOutPhotoURI: pgTextToString(rec.CheckOutPhotoUri),
+		ID:                   rec.ID,
+		UserID:               rec.UserID,
+		CheckInPhotoURI:      pgTextToString(rec.CheckInPhotoUri),
+		CheckOutPhotoURI:     pgTextToString(rec.CheckOutPhotoUri),
+		LocationChecksCount:  rec.LocationChecksCount,
+		LocationChecksWithin: rec.LocationChecksWithin,
 	}
 	if rec.Date.Valid {
 		resp.Date = rec.Date.Time.Format(dateLayout)
@@ -186,6 +194,7 @@ func (s *Server) handleListAttendance(w http.ResponseWriter, r *http.Request) {
 		resp = append(resp, toAttendanceWithUserResponse(
 			rec.ID, rec.UserID, rec.FullName, rec.Email, rec.Date,
 			rec.CheckIn, rec.CheckOut, rec.CheckInPhotoUri, rec.CheckOutPhotoUri,
+			rec.LocationChecksCount, rec.LocationChecksWithin,
 		))
 	}
 
@@ -225,6 +234,7 @@ func (s *Server) handleGetOpenAttendance(w http.ResponseWriter, r *http.Request)
 		resp = append(resp, toAttendanceWithUserResponse(
 			rec.ID, rec.UserID, rec.FullName, rec.Email, rec.Date,
 			rec.CheckIn, rec.CheckOut, rec.CheckInPhotoUri, rec.CheckOutPhotoUri,
+			0, 0,
 		))
 	}
 
@@ -287,6 +297,7 @@ func (s *Server) handleGetStaleOpenAttendance(w http.ResponseWriter, r *http.Req
 		resp = append(resp, toAttendanceWithUserResponse(
 			rec.ID, rec.UserID, rec.FullName, rec.Email, rec.Date,
 			rec.CheckIn, rec.CheckOut, rec.CheckInPhotoUri, rec.CheckOutPhotoUri,
+			0, 0,
 		))
 	}
 

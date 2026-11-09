@@ -44,9 +44,12 @@ ORDER BY date DESC
 LIMIT $3 OFFSET $4;
 
 -- name: GetAttendanceRecordsForUserAndDateRange :many
-SELECT * FROM attendance_records
-WHERE user_id = $1 AND date BETWEEN $2 AND $3
-ORDER BY date DESC
+SELECT ar.*,
+       (SELECT COUNT(*) FROM location_checks lc WHERE lc.attendance_record_id = ar.id) AS location_checks_count,
+       (SELECT COUNT(*) FROM location_checks lc WHERE lc.attendance_record_id = ar.id AND lc.within_geofence) AS location_checks_within
+FROM attendance_records ar
+WHERE ar.user_id = $1 AND ar.date BETWEEN $2 AND $3
+ORDER BY ar.date DESC
 LIMIT $4 OFFSET $5;
 
 -- name: CountAttendanceRecordsForUser :one
@@ -62,7 +65,9 @@ SELECT COUNT(*) FROM attendance_records
 WHERE user_id = $1 AND date BETWEEN $2 AND $3;
 
 -- name: GetAttendanceRecordsForDateRangeWithUser :many
-SELECT ar.*, u.full_name, u.email
+SELECT ar.*, u.full_name, u.email,
+       (SELECT COUNT(*) FROM location_checks lc WHERE lc.attendance_record_id = ar.id) AS location_checks_count,
+       (SELECT COUNT(*) FROM location_checks lc WHERE lc.attendance_record_id = ar.id AND lc.within_geofence) AS location_checks_within
 FROM attendance_records ar
 JOIN users u ON u.id = ar.user_id
 WHERE ar.date BETWEEN $1 AND $2

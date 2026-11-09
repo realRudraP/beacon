@@ -65,6 +65,8 @@ class AttendanceRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getOpenRecord(): AttendanceEntity? = attendanceDao.getOpenRecord()
+
     override suspend fun hasClockedInToday(): Boolean {
         return attendanceDao.getTodayRecord().first() != null
     }

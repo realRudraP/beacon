@@ -1,6 +1,8 @@
 package dev.realrudrap.beacon.data.remote
 
 import dev.realrudrap.beacon.data.remote.dto.AttendanceResponse
+import dev.realrudrap.beacon.data.remote.dto.IngestLocationChecksRequest
+import dev.realrudrap.beacon.data.remote.dto.IngestLocationChecksResponse
 import dev.realrudrap.beacon.data.remote.dto.MarkAttendanceRequest
 import dev.realrudrap.beacon.data.remote.dto.PhotoUploadResponse
 import dev.realrudrap.beacon.data.remote.dto.UpdateAttendanceRequest
@@ -40,4 +42,9 @@ interface AttendanceApiService {
         @Query("from") fromDate: String? = null,
         @Query("to") toDate: String? = null
     ): Response<List<AttendanceResponse>>
+
+    @POST("attendance/location-checks")
+    suspend fun ingestLocationChecks(
+        @Body request: IngestLocationChecksRequest
+    ): Response<IngestLocationChecksResponse>
 }

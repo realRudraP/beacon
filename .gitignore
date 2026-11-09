@@ -6,3 +6,4 @@ config.yaml
 !.env.example
 beacon_firebase_key.json
 android/app/debug
+*.zip

@@ -49,7 +49,7 @@ type Store interface {
 	UpdateAttendancePhoto(ctx context.Context, arg database.UpdateAttendancePhotoParams) error
 	GetAttendanceRecordsForUser(ctx context.Context, arg database.GetAttendanceRecordsForUserParams) ([]database.AttendanceRecord, error)
 	GetAttendanceRecordsForDateRange(ctx context.Context, arg database.GetAttendanceRecordsForDateRangeParams) ([]database.AttendanceRecord, error)
-	GetAttendanceRecordsForUserAndDateRange(ctx context.Context, arg database.GetAttendanceRecordsForUserAndDateRangeParams) ([]database.AttendanceRecord, error)
+	GetAttendanceRecordsForUserAndDateRange(ctx context.Context, arg database.GetAttendanceRecordsForUserAndDateRangeParams) ([]database.GetAttendanceRecordsForUserAndDateRangeRow, error)
 	CountAttendanceRecordsForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountAttendanceRecordsForDateRange(ctx context.Context, arg database.CountAttendanceRecordsForDateRangeParams) (int64, error)
 	CountAttendanceRecordsForUserAndDateRange(ctx context.Context, arg database.CountAttendanceRecordsForUserAndDateRangeParams) (int64, error)

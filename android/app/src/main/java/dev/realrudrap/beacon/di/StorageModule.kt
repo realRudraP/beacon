@@ -11,9 +11,11 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.realrudrap.beacon.data.local.AppDatabase
+import dev.realrudrap.beacon.data.local.AppMigrations
 import dev.realrudrap.beacon.data.local.AttendanceDao
 import dev.realrudrap.beacon.data.local.CashTransactionDao
 import dev.realrudrap.beacon.data.local.ConfigDao
+import dev.realrudrap.beacon.data.local.LocationCheckDao
 import dev.realrudrap.beacon.data.local.UserDao
 import javax.inject.Singleton
 
@@ -31,6 +33,7 @@ object StorageModule {
             AppDatabase::class.java,
             "beacon_db"
         )
+            .addMigrations(AppMigrations.MIGRATION_5_6)
             .fallbackToDestructiveMigration(true)
             .build()
     }
@@ -62,5 +65,11 @@ object StorageModule {
     @Singleton
     fun provideCashDao(db: AppDatabase): CashTransactionDao{
         return db.cashTransactionDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideLocationCheckDao(db: AppDatabase): LocationCheckDao {
+        return db.locationCheckDao()
     }
 }
