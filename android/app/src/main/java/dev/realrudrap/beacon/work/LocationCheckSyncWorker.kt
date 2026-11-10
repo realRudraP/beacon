@@ -1,6 +1,7 @@
 package dev.realrudrap.beacon.work
 
 import android.content.Context
+import android.os.Build
 import androidx.hilt.work.HiltWorker
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -21,7 +22,6 @@ import dev.realrudrap.beacon.data.local.entity.LocationCheckEntity
 import dev.realrudrap.beacon.data.remote.AttendanceApiService
 import dev.realrudrap.beacon.data.remote.dto.IngestLocationChecksRequest
 import dev.realrudrap.beacon.data.remote.dto.LocationCheckPayload
-import dev.realrudrap.beacon.domain.provider.CrashReportingProvider
 import kotlinx.coroutines.CancellationException
 import timber.log.Timber
 import java.io.IOException
@@ -33,15 +33,28 @@ class LocationCheckSyncWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val locationCheckDao: LocationCheckDao,
     private val attendanceDao: AttendanceDao,
-    private val attendanceApiService: AttendanceApiService,
-    private val crashReporter: CrashReportingProvider,
+    private val attendanceApiService: AttendanceApiService
 ) : CoroutineWorker(context, params) {
 
     private enum class SyncResult { Success, Retry, Failed }
 
     override suspend fun doWork(): Result {
+        return try {
+            syncLocationChecks()
+        } catch (e: CancellationException) {
+            val stopReason = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) this.stopReason else -1
+            Timber.tag(TAG).w(
+                "Sync worker stopped: attempt=%d stopReason=%d",
+                runAttemptCount,
+                stopReason
+            )
+            throw e
+        }
+    }
+
+    private suspend fun syncLocationChecks(): Result {
         val pending = locationCheckDao.getPendingChecks()
-        crashReporter.log("LOCATION_CHECK_SYNC pending=${pending.size}")
+        Timber.tag(TAG).d("%d pending location check(s)", pending.size)
         if (pending.isEmpty()) return Result.success()
 
         var shouldRetry = false
@@ -50,15 +63,14 @@ class LocationCheckSyncWorker @AssistedInject constructor(
         for ((attendanceRecordId, checks) in byAttendance) {
             val attendance = attendanceDao.getRecordById(attendanceRecordId)
             if (attendance == null) {
-                Timber.e("$TAG: orphan location checks for $attendanceRecordId")
-                crashReporter.log("LOCATION_CHECK_SYNC orphan attendance=$attendanceRecordId")
+                Timber.tag(TAG).e("Orphan location checks for attendance %s; marking failed", attendanceRecordId)
                 checks.forEach { locationCheckDao.updateSyncStatus(it.id, AttendanceSyncStatus.FAILED.name) }
                 continue
             }
 
             // Never upload checks before their parent attendance exists on the server.
             if (attendance.syncStatus != AttendanceSyncStatus.SYNCED.name) {
-                Timber.d("$TAG: waiting for attendance $attendanceRecordId to sync")
+                Timber.tag(TAG).d("Waiting for attendance %s to sync", attendanceRecordId)
                 shouldRetry = true
                 continue
             }
@@ -93,20 +105,31 @@ class LocationCheckSyncWorker @AssistedInject constructor(
         return try {
             val response = attendanceApiService.ingestLocationChecks(request)
             if (!response.isSuccessful) {
-                val message = "LOCATION_CHECK_SYNC http=${response.code()} count=${checks.size}"
-                Timber.e("$TAG: $message")
-                crashReporter.log(message)
-                return if (isRetryable(response.code())) {
-                    SyncResult.Retry
-                } else {
-                    checks.forEach { locationCheckDao.updateSyncStatus(it.id, AttendanceSyncStatus.FAILED.name) }
-                    SyncResult.Failed
+                if (isRetryable(response.code())) {
+                    if (response.code() == 401 || response.code() == 403) {
+                        Timber.tag(TAG).e(
+                            "Location check upload rejected with HTTP %d for %d check(s)",
+                            response.code(), checks.size
+                        )
+                    } else {
+                        Timber.tag(TAG).w(
+                            "Location check upload temporarily failed with HTTP %d for %d check(s)",
+                            response.code(), checks.size
+                        )
+                    }
+                    return SyncResult.Retry
                 }
+                Timber.tag(TAG).e(
+                    "Location check upload failed permanently with HTTP %d for %d check(s)",
+                    response.code(), checks.size
+                )
+                checks.forEach { locationCheckDao.updateSyncStatus(it.id, AttendanceSyncStatus.FAILED.name) }
+                return SyncResult.Failed
             }
 
             val body = response.body()
             if (body == null) {
-                crashReporter.log("LOCATION_CHECK_SYNC empty_body")
+                Timber.tag(TAG).e("Location check upload returned an empty body (HTTP %d)", response.code())
                 return SyncResult.Retry
             }
 
@@ -124,20 +147,25 @@ class LocationCheckSyncWorker @AssistedInject constructor(
                 } else {
                     locationCheckDao.updateSyncStatus(rejected.id, AttendanceSyncStatus.FAILED.name)
                 }
-                crashReporter.log("LOCATION_CHECK_SYNC rejected id=${rejected.id} reason=${rejected.reason}")
+                if (transient) {
+                    Timber.tag(TAG).w("Location check %s rejected transiently: %s", rejected.id, rejected.reason)
+                } else {
+                    Timber.tag(TAG).e("Location check %s rejected: %s", rejected.id, rejected.reason)
+                }
             }
 
-            crashReporter.log("LOCATION_CHECK_SYNC success stored=${storedIds.size} rejected=${body.rejected.size}")
+            Timber.tag(TAG).i(
+                "Location check upload complete: accepted=%d duplicates=%d rejected=%d (HTTP %d)",
+                body.accepted.size, body.duplicates.size, body.rejected.size, response.code()
+            )
             if (retry) SyncResult.Retry else SyncResult.Success
         } catch (e: CancellationException) {
             throw e
         } catch (e: IOException) {
-            Timber.e(e, "$TAG: network exception")
-            crashReporter.log("LOCATION_CHECK_SYNC network_error error=${e.javaClass.simpleName}")
+            Timber.tag(TAG).w(e, "Network error uploading location checks")
             SyncResult.Retry
         } catch (e: Exception) {
-            Timber.e(e, "$TAG: exception")
-            crashReporter.recordException(e)
+            Timber.tag(TAG).e(e, "Unexpected error uploading location checks")
             checks.forEach { locationCheckDao.updateSyncStatus(it.id, AttendanceSyncStatus.FAILED.name) }
             SyncResult.Failed
         }
@@ -169,6 +197,7 @@ class LocationCheckSyncWorker @AssistedInject constructor(
                 ExistingPeriodicWorkPolicy.KEEP,
                 request
             )
+            Timber.tag(TAG).i("Periodic location check sync scheduled")
         }
 
         fun syncNow(context: Context) {
@@ -185,6 +214,7 @@ class LocationCheckSyncWorker @AssistedInject constructor(
                 ExistingWorkPolicy.REPLACE,
                 request
             )
+            Timber.tag(TAG).d("Immediate location check sync enqueued")
         }
     }
 }

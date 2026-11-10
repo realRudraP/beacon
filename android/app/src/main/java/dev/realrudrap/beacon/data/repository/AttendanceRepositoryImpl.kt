@@ -43,8 +43,10 @@ class AttendanceRepositoryImpl @Inject constructor(
                 syncStatus = AttendanceSyncStatus.PENDING.name
             )
             attendanceDao.insert(entity)
+            Timber.tag(TAG).i("Clock-in stored locally id=%s", entity.id)
             Result.success(Unit)
         } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to store clock-in locally")
             Result.failure(e)
         }
     }
@@ -59,8 +61,10 @@ class AttendanceRepositoryImpl @Inject constructor(
                 long = long,
                 localPath = photoLocalPath
             )
+            Timber.tag(TAG).i("Clock-out stored locally id=%s", id)
             Result.success(Unit)
         } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to store clock-out locally id=%s", id)
             Result.failure(e)
         }
     }
@@ -92,13 +96,14 @@ class AttendanceRepositoryImpl @Inject constructor(
                 val serverRecords = response.body() ?: emptyList()
                 val entities = serverRecords.map { it.toEntity() }
                 attendanceDao.upsertServerRecords(entities)
+                Timber.tag(TAG).i("Attendance history refreshed for %s (HTTP %d, count=%d)", month, response.code(), entities.size)
                 Result.success(Unit)
             } else {
-                Timber.e("Failed to fetch attendance history: code=${response.code()}")
+                Timber.tag(TAG).w("Failed to fetch attendance history for %s (HTTP %d)", month, response.code())
                 Result.failure(Exception("Server returned ${response.code()}"))
             }
         } catch (e: Exception) {
-            Timber.e(e, "Exception fetching attendance history for $month")
+            Timber.tag(TAG).e(e, "Exception fetching attendance history for %s", month)
             Result.failure(e)
         }
     }
@@ -107,6 +112,10 @@ class AttendanceRepositoryImpl @Inject constructor(
         endOfMonth: String
     ): List<AttendanceEntity> {
         return attendanceDao.getRecordsForMonth(startOfMonth, endOfMonth)
+    }
+
+    private companion object {
+        const val TAG = "AttendanceRepository"
     }
 
     private fun AttendanceResponse.toEntity(): AttendanceEntity {

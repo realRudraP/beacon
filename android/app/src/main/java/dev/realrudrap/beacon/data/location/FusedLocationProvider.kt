@@ -7,7 +7,6 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
-import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -23,6 +22,7 @@ import kotlin.coroutines.resume
 
 private const val LOCATION_TIMEOUT_MS = 60_000L
 private const val MAX_LOCATION_AGE_MS = 30_000L
+private const val TAG = "LocationProvider"
 
 class FusedLocationProvider @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -35,32 +35,35 @@ class FusedLocationProvider @Inject constructor(
 
     override suspend fun getFreshLocation(): Result<Location> {
         if (!hasLocationPermission()) {
-            logger.d("LocationProvider","Permission denied")
+            logger.w(TAG, "Location permission denied")
             return Result.failure(LocationException(LocationError.PermissionDenied))
         }
         if (!isGpsEnabled() && !isNetworkEnabled()) {
+            logger.w(TAG, "No location provider enabled")
             return Result.failure(LocationException(LocationError.GpsDisabled))
         }
-        logger.d("LocationProvider", "Starting location request")
+        logger.d(TAG, "Starting location request")
         val location = withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
-            logger.d("LocationProvider", "Trying fused...")
+            logger.d(TAG, "Trying fused location provider")
             val fused = tryFused()
-            logger.d("LocationProvider", "Fused result: $fused")
+            logger.d(TAG, "Fused location result: ${fused?.let { "ok (accuracy=${it.accuracy}m)" } ?: "unavailable"}")
             fused ?: run {
-                logger.d("LocationProvider", "Trying GPS...")
+                logger.d(TAG, "Trying GPS provider")
                 tryGps()
             } ?: run {
-                logger.d("LocationProvider", "Trying network...")
+                logger.d(TAG, "Trying network provider")
                 tryNetwork()
             }
         }
-        logger.d("LocationProvider", "Final location: $location")
         return if (location != null) {
+            logger.d(TAG, "Location acquired (accuracy=${location.accuracy}m)")
             Result.success(location)
         } else {
             if (!isGpsEnabled() && !isNetworkEnabled()) {
+                logger.w(TAG, "Location request failed: no provider enabled")
                 Result.failure(LocationException(LocationError.GpsDisabled))
             } else {
+                logger.w(TAG, "Location request timed out after ${LOCATION_TIMEOUT_MS}ms")
                 Result.failure(LocationException(LocationError.Timeout))
             }
         }
@@ -96,6 +99,10 @@ class FusedLocationProvider @Inject constructor(
                     fusedClient.removeLocationUpdates(callback)
                 }
             } catch (e: SecurityException) {
+                logger.w(TAG, "Fused location permission revoked", e)
+                cont.resume(null)
+            } catch (e: Exception) {
+                logger.e(TAG, "Fused location request failed", e)
                 cont.resume(null)
             }
         }
@@ -141,12 +148,17 @@ class FusedLocationProvider @Inject constructor(
                     provider,
                     0L,   // minTimeMs — get it as fast as possible
                     0f,   // minDistanceM — no distance filter
-                    listener
+                    listener,
+                    context.mainLooper
                 )
                 cont.invokeOnCancellation {
                     locationManager.removeUpdates(listener)
                 }
             } catch (e: SecurityException) {
+                logger.w(TAG, "Location permission revoked for provider $provider")
+                cont.resume(null)
+            } catch (e: Exception) {
+                logger.e(TAG, "Location request failed for provider $provider", e)
                 cont.resume(null)
             }
         }

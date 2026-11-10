@@ -17,7 +17,6 @@ import dev.realrudrap.beacon.domain.repository.ConfigRepository
 import dev.realrudrap.beacon.domain.repository.UserRepository
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
-import android.util.Log
 import timber.log.Timber
 
 @HiltWorker
@@ -31,6 +30,7 @@ class NotificationWorker @AssistedInject constructor(
     private val notificationScheduler: NotificationScheduler
 ) : CoroutineWorker(context, workerParams){
     companion object {
+        private const val TAG = "NotificationWorker"
         const val KEY_RULE_ID = "rule_id"
         const val KEY_TITLE = "title"
         const val KEY_DESCRIPTION = "description"
@@ -38,29 +38,36 @@ class NotificationWorker @AssistedInject constructor(
     }
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     override suspend fun doWork(): Result {
-        val ruleId = inputData.getString(KEY_RULE_ID) ?: return Result.failure()
-        val title = inputData.getString(KEY_TITLE) ?: return Result.failure()
-        val description = inputData.getString(KEY_DESCRIPTION) ?: return Result.failure()
+        val ruleId = inputData.getString(KEY_RULE_ID)
+        val title = inputData.getString(KEY_TITLE)
+        val description = inputData.getString(KEY_DESCRIPTION)
+        if (ruleId == null || title == null || description == null) {
+            Timber.tag(TAG).w("Notification rule missing required input data")
+            return Result.failure()
+        }
 
         val config = configRepository.config.first()
         if (config == null) {
-            Timber.tag("NotificationWorker").d("No config, skipping $title")
+            Timber.tag(TAG).d("No config available; skipping rule %s", ruleId)
             return Result.success()
         }
 
-        val rule = config.notificationRules?.find { it.id == ruleId } ?: return Result.success()
+        val rule = config.notificationRules?.find { it.id == ruleId }
+        if (rule == null) {
+            Timber.tag(TAG).w("Rule %s no longer exists in config", ruleId)
+            return Result.success()
+        }
 
         if (!rule.enabled) {
-            Timber.tag("NotificationWorker").d("Rule disabled: $title")
+            Timber.tag(TAG).d("Rule %s is disabled", ruleId)
             return Result.success()
         }
 
         if (checkConditions(rule.conditions)) {
             postNotification(ruleId, title, description)
         } else {
-            Timber.tag("NotificationWorker").d("Conditions not met for: $title")
+            Timber.tag(TAG).d("Conditions not met for rule %s", ruleId)
         }
-
 
         notificationScheduler.enqueueRule(rule)
         return Result.success()
@@ -102,6 +109,12 @@ class NotificationWorker @AssistedInject constructor(
             .setAutoCancel(true)
             .build()
 
-        notificationManager.notify(ruleId.hashCode(), notification)
+        runCatching {
+            notificationManager.notify(ruleId.hashCode(), notification)
+        }.onSuccess {
+            Timber.tag(TAG).i("Posted notification for rule %s", ruleId)
+        }.onFailure { error ->
+            Timber.tag(TAG).w(error, "Failed to post notification for rule %s", ruleId)
+        }
     }
 }

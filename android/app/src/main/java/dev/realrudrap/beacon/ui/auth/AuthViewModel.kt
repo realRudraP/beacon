@@ -27,7 +27,7 @@ class AuthViewModel @Inject constructor(
     val uiState: StateFlow<AuthState> = _uiState
 
     fun login(username: String, password: String) {
-     _uiState.value = AuthState.Loading
+        _uiState.value = AuthState.Loading
 
         viewModelScope.launch {
             val result = authRepository.login(username,password)

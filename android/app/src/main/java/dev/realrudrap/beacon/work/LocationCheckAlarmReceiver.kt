@@ -21,6 +21,7 @@ class LocationCheckAlarmReceiver : BroadcastReceiver() {
             return
         }
 
+        Timber.tag(TAG).d("Received location check alarm for attendance=%s sequence=%d", attendanceRecordId, sequence)
         LocationCheckCaptureWorker.enqueue(context, attendanceRecordId, sequence)
     }
 

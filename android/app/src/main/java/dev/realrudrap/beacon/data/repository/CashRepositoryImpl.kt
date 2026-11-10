@@ -43,9 +43,10 @@ class CashRepositoryImpl @Inject constructor(
                 createdAt = Clock.System.now().toString()
             )
             cashTransactionDao.insert(entity)
+            Timber.tag(TAG).i("Expense stored locally id=%s", entity.id)
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to record expense locally")
+            Timber.tag(TAG).e(e, "Failed to record expense locally")
             Result.failure(e)
         }
     }
@@ -57,15 +58,20 @@ class CashRepositoryImpl @Inject constructor(
                 val ledger = response.body()
                 val entities = ledger?.transactions?.map { it.toEntity() } ?: emptyList()
                 cashTransactionDao.upsertServerTransactions(entities)
+                Timber.tag(TAG).i("Cash ledger refreshed (HTTP %d, count=%d)", response.code(), entities.size)
                 Result.success(Unit)
             } else {
-                Timber.e("Failed to refresh cash ledger: ${response.code()}")
+                Timber.tag(TAG).w("Failed to refresh cash ledger (HTTP %d)", response.code())
                 Result.failure(Exception("Server returned ${response.code()}"))
             }
         } catch (e: Exception) {
-            Timber.e(e, "Exception refreshing cash ledger")
+            Timber.tag(TAG).e(e, "Exception refreshing cash ledger")
             Result.failure(e)
         }
+    }
+
+    private companion object {
+        const val TAG = "CashRepository"
     }
 
     private fun CashTransactionResponse.toEntity(): CashTransactionEntity {

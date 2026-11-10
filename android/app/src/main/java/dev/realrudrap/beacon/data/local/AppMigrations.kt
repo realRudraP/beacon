@@ -37,4 +37,35 @@ object AppMigrations {
             )
         }
     }
+
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `worker_failure_logs` (
+                    `id` TEXT NOT NULL,
+                    `workerClassName` TEXT NOT NULL,
+                    `failureType` TEXT NOT NULL,
+                    `workId` TEXT,
+                    `runAttemptCount` INTEGER NOT NULL,
+                    `tags` TEXT NOT NULL,
+                    `message` TEXT NOT NULL,
+                    `stackTrace` TEXT,
+                    `recentLogs` TEXT,
+                    `uploaded` INTEGER NOT NULL,
+                    `createdAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_worker_failure_logs_uploaded` " +
+                        "ON `worker_failure_logs` (`uploaded`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_worker_failure_logs_createdAt` " +
+                        "ON `worker_failure_logs` (`createdAt`)"
+            )
+        }
+    }
 }

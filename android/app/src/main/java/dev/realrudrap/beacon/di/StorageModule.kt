@@ -17,6 +17,7 @@ import dev.realrudrap.beacon.data.local.CashTransactionDao
 import dev.realrudrap.beacon.data.local.ConfigDao
 import dev.realrudrap.beacon.data.local.LocationCheckDao
 import dev.realrudrap.beacon.data.local.UserDao
+import dev.realrudrap.beacon.data.local.WorkerFailureLogDao
 import javax.inject.Singleton
 
 
@@ -33,7 +34,7 @@ object StorageModule {
             AppDatabase::class.java,
             "beacon_db"
         )
-            .addMigrations(AppMigrations.MIGRATION_5_6)
+            .addMigrations(AppMigrations.MIGRATION_5_6, AppMigrations.MIGRATION_6_7)
             .fallbackToDestructiveMigration(true)
             .build()
     }
@@ -71,5 +72,11 @@ object StorageModule {
     @Singleton
     fun provideLocationCheckDao(db: AppDatabase): LocationCheckDao {
         return db.locationCheckDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideWorkerFailureLogDao(db: AppDatabase): WorkerFailureLogDao {
+        return db.workerFailureLogDao()
     }
 }

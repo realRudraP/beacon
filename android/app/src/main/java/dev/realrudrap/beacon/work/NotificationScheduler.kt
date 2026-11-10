@@ -1,7 +1,6 @@
 package dev.realrudrap.beacon.work
 
 
-import android.util.Log
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 
@@ -25,7 +24,9 @@ class NotificationScheduler @Inject constructor(
     fun schedule(rules: List<NotificationRule>) {
         workManager.cancelAllWorkByTag(TAG_NOTIFICATION)
 
-        rules.filter { it.enabled }.forEach { rule ->
+        val enabledRules = rules.filter { it.enabled }
+        Timber.tag(TAG).i("Scheduling %d notification rule(s)", enabledRules.size)
+        enabledRules.forEach { rule ->
             enqueueRule(rule)
         }
     }
@@ -34,7 +35,7 @@ class NotificationScheduler @Inject constructor(
         val targetTime = parseTargetTime(rule.time)
         val delay = computeDelay(targetTime)
 
-        Log.d("NotificationScheduler", "Scheduling '${rule.title}' in ${delay}ms (at $targetTime)")
+        Timber.tag(TAG).d("Scheduling rule %s at %s (delay=%dms)", rule.id, targetTime, delay)
 
         val data = workDataOf(
             NotificationWorker.KEY_RULE_ID to rule.id,
@@ -83,9 +84,11 @@ class NotificationScheduler @Inject constructor(
 
     fun cancel() {
         workManager.cancelAllWorkByTag(TAG_NOTIFICATION)
+        Timber.tag(TAG).d("Cancelled all scheduled notification rules")
     }
 
     companion object {
+        private const val TAG = "NotificationScheduler"
         const val TAG_NOTIFICATION = "beacon_notification"
     }
 }

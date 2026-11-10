@@ -6,7 +6,8 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
-    alias(libs.plugins.firebase.crashlytics)
+
+    id("io.sentry.android.gradle") version "6.26.0"
 }
 
 android {
@@ -84,7 +85,6 @@ dependencies {
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
-    implementation(libs.firebase.crashlytics)
     implementation(libs.timber)
     implementation(libs.androidx.hilt.work)
     implementation(libs.play.services.location)
@@ -106,4 +106,13 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+sentry {
+    org.set("litmus-makes")
+    projectName.set("android")
+
+    // this will upload your source code to Sentry to show it as part of the stack traces
+    // disable if you don't want to expose your sources
+    includeSourceContext.set(true)
 }

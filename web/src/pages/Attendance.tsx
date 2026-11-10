@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -391,36 +392,55 @@ function ShiftStatusBadge({
 function LocationChecksBadge({
   count,
   within,
+  onClick,
 }: {
   count?: number;
   within?: number;
+  onClick?: () => void;
 }) {
   if (count === undefined) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
-  if (count === 0) {
-    return (
-      <Badge variant="outline" className="gap-1 font-normal text-muted-foreground">
+
+  const inside = within ?? 0;
+  const allInside = inside === count;
+  const title = `${inside} of ${count} location check${count === 1 ? "" : "s"} inside a geofence`;
+  const badge =
+    count === 0 ? (
+      <Badge
+        variant="outline"
+        title={title}
+        className="gap-1 font-normal text-muted-foreground"
+      >
         <MapPin className="h-3 w-3" />
         0
       </Badge>
+    ) : (
+      <Badge
+        variant="secondary"
+        title={title}
+        className={
+          allInside
+            ? "gap-1 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 font-normal"
+            : "gap-1 bg-amber-500/15 text-amber-700 hover:bg-amber-500/15 font-normal"
+        }
+      >
+        <MapPin className="h-3 w-3" />
+        {inside}/{count} passed
+      </Badge>
     );
-  }
-  const inside = within ?? 0;
-  const allInside = inside === count;
+
+  if (!onClick) return badge;
+
   return (
-    <Badge
-      variant="secondary"
-      title={`${inside} of ${count} location check${count === 1 ? "" : "s"} inside a geofence`}
-      className={
-        allInside
-          ? "gap-1 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 font-normal"
-          : "gap-1 bg-amber-500/15 text-amber-700 hover:bg-amber-500/15 font-normal"
-      }
+    <button
+      type="button"
+      onClick={onClick}
+      title={`${title}. Click to view details.`}
+      className="cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
-      <MapPin className="h-3 w-3" />
-      {inside}/{count} passed
-    </Badge>
+      {badge}
+    </button>
   );
 }
 
@@ -439,6 +459,264 @@ function FitMapToChecks({ points }: { points: [number, number][] }) {
   }, [map, key]);
 
   return null;
+}
+
+function LocationChecksMap({
+  checks,
+  geofences,
+  className = "h-[280px] sm:h-[340px] w-full",
+}: {
+  checks: LocationCheckDTO[];
+  geofences: GeofenceOption[];
+  className?: string;
+}) {
+  const points = useMemo<[number, number][]>(
+    () => checks.map((check) => [check.latitude, check.longitude]),
+    [checks],
+  );
+
+  const center = useMemo<[number, number]>(() => {
+    if (points.length > 0) return points[0];
+    if (geofences.length > 0) {
+      return [geofences[0].center_lat, geofences[0].center_lng];
+    }
+    return [28.6139, 77.209];
+  }, [points, geofences]);
+
+  return (
+    <div className={className}>
+      <MapContainer
+        center={center}
+        zoom={15}
+        scrollWheelZoom={true}
+        className="h-full w-full"
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <FitMapToChecks points={points} />
+        {geofences.map((gf) => (
+          <Circle
+            key={gf.id}
+            center={[gf.center_lat, gf.center_lng]}
+            radius={gf.radius}
+            pathOptions={{
+              color: "hsl(var(--primary))",
+              fillOpacity: 0.08,
+            }}
+          />
+        ))}
+        {checks.map((check) => (
+          <CircleMarker
+            key={check.id}
+            center={[check.latitude, check.longitude]}
+            radius={7}
+            pathOptions={{
+              color: check.within_geofence ? "#10b981" : "#ef4444",
+              fillColor: check.within_geofence ? "#10b981" : "#ef4444",
+              fillOpacity: 0.85,
+              weight: 2,
+            }}
+          />
+        ))}
+      </MapContainer>
+    </div>
+  );
+}
+
+function LocationChecksDialog({
+  record,
+  employeeName,
+  geofences,
+  onOpenChange,
+}: {
+  record: AttendanceRecordDTO;
+  employeeName?: string;
+  geofences: GeofenceOption[];
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [checks, setChecks] = useState<LocationCheckDTO[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const params: Record<string, string | number> = {
+      attendance_id: record.id,
+      limit: 20,
+      offset: 0,
+    };
+    if (record.check_in) params.from = record.check_in;
+    if (record.check_out) {
+      const checkOutTime = new Date(record.check_out).getTime();
+      if (!Number.isNaN(checkOutTime)) {
+        params.to = new Date(checkOutTime + 1000).toISOString();
+      }
+    }
+
+    api
+      .get<{ checks: LocationCheckDTO[]; total: number }>(
+        "/attendance/admin/location-checks",
+        { params },
+      )
+      .then(({ data }) => {
+        if (!cancelled) {
+          setChecks(data.checks ?? []);
+          setError(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError(
+            "Could not load location checks for this attendance record.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [record, reloadKey]);
+
+  const orderedChecks = useMemo(
+    () =>
+      [...checks].sort(
+        (a, b) => a.sequence_number - b.sequence_number,
+      ),
+    [checks],
+  );
+  const withinCount = orderedChecks.filter(
+    (check) => check.within_geofence,
+  ).length;
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] w-[96vw] overflow-y-auto sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Location checks</DialogTitle>
+          <DialogDescription>
+            {employeeName ? `${employeeName} · ` : ""}
+            {formatDate(record.date)}
+            {record.check_in ? ` · ${formatTime(record.check_in)}` : ""}
+            {record.check_out ? `–${formatTime(record.check_out)}` : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading location checks…
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16">
+            <p className="text-sm text-destructive">{error}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setError(null);
+                setLoading(true);
+                setReloadKey((key) => key + 1);
+              }}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : orderedChecks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
+            <MapPin className="h-8 w-8 opacity-30" />
+            <p className="text-sm font-medium">No location checks recorded</p>
+            <p className="text-xs">
+              No background checks were captured for this shift.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <LocationChecksBadge
+                count={orderedChecks.length}
+                within={withinCount}
+              />
+              <span>
+                {withinCount} inside · {orderedChecks.length - withinCount}{" "}
+                outside
+              </span>
+            </div>
+
+            <LocationChecksMap
+              checks={orderedChecks}
+              geofences={geofences}
+              className="h-[260px] w-full overflow-hidden rounded-md border"
+            />
+
+            <div className="overflow-x-auto rounded-md border">
+              <Table className="min-w-[760px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Check</TableHead>
+                    <TableHead>Captured</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Coordinates</TableHead>
+                    <TableHead>Geofence</TableHead>
+                    <TableHead>Distance</TableHead>
+                    <TableHead>Accuracy</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orderedChecks.map((check) => (
+                    <TableRow key={check.id}>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        #{check.sequence_number}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm">
+                        {formatDateTime(check.captured_at)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            check.within_geofence ? "secondary" : "destructive"
+                          }
+                          className={
+                            check.within_geofence
+                              ? "bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15 font-normal"
+                              : "font-normal"
+                          }
+                        >
+                          {check.within_geofence ? "Inside" : "Outside"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        {formatCoords(check.latitude, check.longitude)}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {check.nearest_geofence_name ?? "—"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {check.distance_meters != null
+                          ? `${Math.round(check.distance_meters)} m`
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {check.accuracy != null
+                          ? `±${Math.round(check.accuracy)} m`
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function formatCoords(lat: number, lng: number): string {
@@ -537,6 +815,9 @@ export default function AttendancePage() {
   const [locationLoading, setLocationLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [geofences, setGeofences] = useState<GeofenceOption[]>([]);
+
+  const [checksRecord, setChecksRecord] =
+    useState<AttendanceRecordDTO | null>(null);
 
   // ----- Calendar tab -----
   const [calendarUserId, setCalendarUserId] = useState<string>("");
@@ -741,18 +1022,13 @@ export default function AttendancePage() {
     Math.ceil(locationTotal / LOCATION_PAGE_SIZE),
   );
 
-  const locationMapPoints = useMemo<[number, number][]>(
-    () => locationChecks.map((c) => [c.latitude, c.longitude]),
-    [locationChecks],
-  );
-
-  const locationMapCenter = useMemo<[number, number]>(() => {
-    if (locationMapPoints.length > 0) return locationMapPoints[0];
-    if (geofences.length > 0) {
-      return [geofences[0].center_lat, geofences[0].center_lng];
-    }
-    return [28.6139, 77.209];
-  }, [locationMapPoints, geofences]);
+  const checksEmployeeName = useMemo(() => {
+    if (!checksRecord) return undefined;
+    return (
+      (checksRecord as AttendanceWithUserDTO).full_name ??
+      users.find((user) => user.id === checksRecord.user_id)?.full_name
+    );
+  }, [checksRecord, users]);
 
   const selectedUserName = useMemo(
     () => users.find((u) => u.id === userFilter)?.full_name,
@@ -1019,6 +1295,7 @@ export default function AttendancePage() {
                             <LocationChecksBadge
                               count={rec.location_checks_count}
                               within={rec.location_checks_within}
+                              onClick={() => setChecksRecord(rec)}
                             />
                           </TableCell>
                           <TableCell>
@@ -1148,48 +1425,10 @@ export default function AttendancePage() {
 
               {!locationLoading && !locationError && locationChecks.length > 0 && (
                 <Card className="overflow-hidden">
-                  <div className="h-[280px] sm:h-[340px] w-full">
-                    <MapContainer
-                      center={locationMapCenter}
-                      zoom={15}
-                      scrollWheelZoom={true}
-                      className="h-full w-full"
-                    >
-                      <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      />
-                      <FitMapToChecks points={locationMapPoints} />
-                      {geofences.map((gf) => (
-                        <Circle
-                          key={gf.id}
-                          center={[gf.center_lat, gf.center_lng]}
-                          radius={gf.radius}
-                          pathOptions={{
-                            color: "hsl(var(--primary))",
-                            fillOpacity: 0.08,
-                          }}
-                        />
-                      ))}
-                      {locationChecks.map((check) => (
-                        <CircleMarker
-                          key={check.id}
-                          center={[check.latitude, check.longitude]}
-                          radius={7}
-                          pathOptions={{
-                            color: check.within_geofence
-                              ? "#10b981"
-                              : "#ef4444",
-                            fillColor: check.within_geofence
-                              ? "#10b981"
-                              : "#ef4444",
-                            fillOpacity: 0.85,
-                            weight: 2,
-                          }}
-                        />
-                      ))}
-                    </MapContainer>
-                  </div>
+                  <LocationChecksMap
+                    checks={locationChecks}
+                    geofences={geofences}
+                  />
                   <div className="flex flex-wrap items-center gap-4 border-t px-4 py-2 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-emerald-500" />
@@ -1492,6 +1731,9 @@ export default function AttendancePage() {
                                   within={
                                     selectedDayRecord.location_checks_within
                                   }
+                                  onClick={() =>
+                                    setChecksRecord(selectedDayRecord)
+                                  }
                                 />
                               </div>
                             </div>
@@ -1697,6 +1939,17 @@ export default function AttendancePage() {
               </div>
             </TabsContent>
           </Tabs>
+
+          {checksRecord && (
+            <LocationChecksDialog
+              record={checksRecord}
+              employeeName={checksEmployeeName}
+              geofences={geofences}
+              onOpenChange={(nextOpen) => {
+                if (!nextOpen) setChecksRecord(null);
+              }}
+            />
+          )}
         </main>
       </div>
 

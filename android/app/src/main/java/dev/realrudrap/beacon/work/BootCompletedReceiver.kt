@@ -26,15 +26,21 @@ class BootCompletedReceiver : BroadcastReceiver() {
             return
         }
 
+        Timber.tag(TAG).i("Received %s; rescheduling location checks", action)
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 scheduler.rescheduleFromOpenRecord()
+                Timber.tag(TAG).d("Location check reschedule after boot complete")
             } catch (e: Exception) {
-                Timber.e(e, "Failed to reschedule location checks after boot")
+                Timber.tag(TAG).e(e, "Failed to reschedule location checks after boot")
             } finally {
                 pendingResult.finish()
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "BootCompletedReceiver"
     }
 }

@@ -6,7 +6,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.realrudrap.beacon.data.provider.AppLoggerImpl
 import dev.realrudrap.beacon.domain.provider.CrashReportingProvider
-import dev.realrudrap.beacon.data.provider.FirebaseCrashReportingProvider
+import dev.realrudrap.beacon.data.provider.SentryCrashReportingProvider
 import dev.realrudrap.beacon.domain.provider.AppLogger
 
 @Module
@@ -14,7 +14,7 @@ import dev.realrudrap.beacon.domain.provider.AppLogger
 abstract class ProviderModule {
     @Binds
     abstract fun bindCrashReportingProvider(
-        firebaseCrashReportingProvider: FirebaseCrashReportingProvider
+        sentryCrashReportingProvider: SentryCrashReportingProvider
     ): CrashReportingProvider
     @Binds
     abstract fun bindAppLogger(

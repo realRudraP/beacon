@@ -20,7 +20,6 @@ import dev.realrudrap.beacon.data.local.entity.AttendanceSyncStatus
 import dev.realrudrap.beacon.data.remote.AttendanceApiService
 import dev.realrudrap.beacon.data.remote.dto.MarkAttendanceRequest
 import dev.realrudrap.beacon.data.remote.dto.UpdateAttendanceRequest
-import dev.realrudrap.beacon.domain.provider.CrashReportingProvider
 import kotlinx.coroutines.CancellationException
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -35,8 +34,7 @@ class AttendanceSyncWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
     private val attendanceDao: AttendanceDao,
-    private val attendanceApiService: AttendanceApiService,
-    private val crashReporter: CrashReportingProvider,
+    private val attendanceApiService: AttendanceApiService
 ) : CoroutineWorker(context, params) {
 
     private enum class SyncResult { Success, Retry, Failed }
@@ -49,21 +47,34 @@ class AttendanceSyncWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         val pending = attendanceDao.getPendingRecords()
-        Timber.d("AttendanceSyncWorker: ${pending.size} pending records")
-        crashReporter.log("ATTENDANCE_SYNC pending=${pending.size}")
+        Timber.tag(TAG).d("%d pending record(s)", pending.size)
 
         if (pending.isEmpty()) return Result.success()
 
         // Process each record independently — one failure doesn't block others
         var shouldRetry = false
         var syncedAny = false
+        var syncedCount = 0
+        var retryCount = 0
+        var failedCount = 0
         for (record in pending) {
             when (syncRecord(record)) {
-                SyncResult.Success -> syncedAny = true
-                SyncResult.Retry -> shouldRetry = true
-                SyncResult.Failed -> Unit
+                SyncResult.Success -> {
+                    syncedAny = true
+                    syncedCount++
+                }
+                SyncResult.Retry -> {
+                    shouldRetry = true
+                    retryCount++
+                }
+                SyncResult.Failed -> failedCount++
             }
         }
+
+        Timber.tag(TAG).i(
+            "Attendance sync finished: synced=%d retrying=%d failed=%d",
+            syncedCount, retryCount, failedCount
+        )
 
         if (syncedAny) {
             // Location checks may now be uploaded once their attendance exists server-side.
@@ -140,19 +151,15 @@ class AttendanceSyncWorker @AssistedInject constructor(
 
             attendanceDao.updateSyncStatus(record.id, AttendanceSyncStatus.SYNCED.name)
             cleanupLocalPhotos(record)
-            Timber.d("AttendanceSyncWorker: record ${record.id} synced successfully")
-            crashReporter.log("ATTENDANCE_SYNC success id=${record.id}")
+            Timber.tag(TAG).i("Record %s synced", record.id)
             SyncResult.Success
         } catch (e: CancellationException) {
             throw e
         } catch (e: IOException) {
-            Timber.e(e, "AttendanceSyncWorker: network exception syncing record ${record.id}")
-            crashReporter.log("ATTENDANCE_SYNC network_error id=${record.id} error=${e.javaClass.simpleName}")
+            Timber.tag(TAG).w(e, "Network error syncing record %s", record.id)
             SyncResult.Retry
         } catch (e: Exception) {
-            Timber.e(e, "AttendanceSyncWorker: exception syncing record ${record.id}")
-            crashReporter.log("ATTENDANCE_SYNC failed id=${record.id} error=${e.javaClass.simpleName}")
-            crashReporter.recordException(e)
+            Timber.tag(TAG).e(e, "Unexpected error syncing record %s", record.id)
             attendanceDao.updateSyncStatus(record.id, AttendanceSyncStatus.FAILED.name)
             SyncResult.Failed
         }
@@ -163,18 +170,17 @@ class AttendanceSyncWorker @AssistedInject constructor(
         recordId: String,
         code: Int
     ): SyncResult {
-        val message = "ATTENDANCE_SYNC $operation id=$recordId http=$code"
-        Timber.e("AttendanceSyncWorker: $operation failed $code for $recordId")
-        crashReporter.log(message)
-
         if (isRetryable(code)) {
             if (code == 401 || code == 403) {
-                crashReporter.recordException(SyncAuthException(message))
+                Timber.tag(TAG).e("%s rejected with HTTP %d for record %s", operation, code, recordId)
+            } else {
+                Timber.tag(TAG).w("%s temporarily failed with HTTP %d for record %s", operation, code, recordId)
             }
             // Leave the record PENDING so the next worker run retries it.
             return SyncResult.Retry
         }
 
+        Timber.tag(TAG).e("%s failed permanently with HTTP %d for record %s", operation, code, recordId)
         attendanceDao.updateSyncStatus(recordId, AttendanceSyncStatus.FAILED.name)
         return SyncResult.Failed
     }
@@ -192,8 +198,7 @@ class AttendanceSyncWorker @AssistedInject constructor(
         if (localPath == null) return PhotoResult.Skip
         val file = File(localPath)
         if (!file.exists()) {
-            Timber.w("AttendanceSyncWorker: photo file not found at $localPath")
-            crashReporter.log("ATTENDANCE_SYNC photo_missing id=$recordId type=$type")
+            Timber.tag(TAG).w("Photo file missing for record %s type=%s", recordId, type)
             return PhotoResult.Skip
         }
 
@@ -202,23 +207,20 @@ class AttendanceSyncWorker @AssistedInject constructor(
             val part = MultipartBody.Part.createFormData("photo", file.name, requestBody)
             val response = attendanceApiService.uploadAttendancePhoto(recordId, type, part)
             if (response.isSuccessful) {
+                Timber.tag(TAG).d("Photo uploaded for record %s type=%s (HTTP %d)", recordId, type, response.code())
                 PhotoResult.Uploaded(response.body()?.photoUrl)
             } else if (isRetryable(response.code())) {
-                Timber.e("AttendanceSyncWorker: photo upload retryable ${response.code()} for $recordId type=$type")
-                crashReporter.log("ATTENDANCE_SYNC photo_retry id=$recordId type=$type http=${response.code()}")
+                Timber.tag(TAG).w("Photo upload retryable for record %s type=%s (HTTP %d)", recordId, type, response.code())
                 PhotoResult.Retry
             } else {
-                Timber.e("AttendanceSyncWorker: photo upload failed ${response.code()} for $recordId type=$type")
-                crashReporter.log("ATTENDANCE_SYNC photo_failed id=$recordId type=$type http=${response.code()}")
+                Timber.tag(TAG).e("Photo upload failed for record %s type=%s (HTTP %d)", recordId, type, response.code())
                 PhotoResult.Skip
             }
         } catch (e: IOException) {
-            Timber.e(e, "AttendanceSyncWorker: photo upload network exception for $recordId type=$type")
-            crashReporter.log("ATTENDANCE_SYNC photo_network_error id=$recordId type=$type")
+            Timber.tag(TAG).w(e, "Photo upload network error for record %s type=%s", recordId, type)
             PhotoResult.Retry
         } catch (e: Exception) {
-            Timber.e(e, "AttendanceSyncWorker: photo upload exception for $recordId type=$type")
-            crashReporter.recordException(e)
+            Timber.tag(TAG).e(e, "Photo upload error for record %s type=%s", recordId, type)
             PhotoResult.Skip
         }
     }
@@ -242,9 +244,8 @@ class AttendanceSyncWorker @AssistedInject constructor(
         }
     }
 
-    private class SyncAuthException(message: String) : Exception(message)
-
     companion object {
+        private const val TAG = "AttendanceSyncWorker"
         private const val PERIODIC_WORK_NAME = "attendance_sync_periodic"
         private const val ONE_TIME_WORK_NAME = "attendance_sync_immediate"
 
@@ -266,6 +267,7 @@ class AttendanceSyncWorker @AssistedInject constructor(
                 ExistingPeriodicWorkPolicy.KEEP,
                 request
             )
+            Timber.tag(TAG).i("Periodic attendance sync scheduled")
         }
 
         /**
@@ -282,6 +284,7 @@ class AttendanceSyncWorker @AssistedInject constructor(
                 ExistingWorkPolicy.REPLACE,
                 request
             )
+            Timber.tag(TAG).d("Immediate attendance sync enqueued")
         }
     }
 }

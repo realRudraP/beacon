@@ -1,6 +1,7 @@
 package dev.realrudrap.beacon.work
 
 import android.content.Context
+import android.os.Build
 import androidx.hilt.work.HiltWorker
 import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
@@ -19,11 +20,12 @@ import dev.realrudrap.beacon.data.local.entity.LocationCheckEntity
 import dev.realrudrap.beacon.data.location.LocationException
 import dev.realrudrap.beacon.data.location.LocationProvider
 import dev.realrudrap.beacon.domain.provider.AppLogger
-import dev.realrudrap.beacon.domain.provider.CrashReportingProvider
+import kotlinx.coroutines.CancellationException
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import timber.log.Timber
 
 /**
  * Captures one background location check for an open attendance record.
@@ -36,11 +38,28 @@ class LocationCheckCaptureWorker @AssistedInject constructor(
     private val attendanceDao: AttendanceDao,
     private val locationCheckDao: LocationCheckDao,
     private val locationProvider: LocationProvider,
-    private val logger: AppLogger,
-    private val crashReporter: CrashReportingProvider,
+    private val logger: AppLogger
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        return try {
+            captureLocationCheck()
+        } catch (e: CancellationException) {
+            val attendanceRecordId = inputData.getString(KEY_ATTENDANCE_ID)
+            val sequence = inputData.getInt(KEY_SEQUENCE, -1)
+            val stopReason = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) this.stopReason else -1
+            Timber.tag(TAG).w(
+                "Capture worker stopped: attendance=%s sequence=%d attempt=%d stopReason=%d",
+                attendanceRecordId,
+                sequence,
+                runAttemptCount,
+                stopReason
+            )
+            throw e
+        }
+    }
+
+    private suspend fun captureLocationCheck(): Result {
         val attendanceRecordId = inputData.getString(KEY_ATTENDANCE_ID)
         val sequence = inputData.getInt(KEY_SEQUENCE, -1)
         if (attendanceRecordId.isNullOrBlank() || sequence !in 1..LocationCheckScheduler.CHECKPOINT_COUNT) {
@@ -78,11 +97,11 @@ class LocationCheckCaptureWorker @AssistedInject constructor(
         val locationResult = locationProvider.getFreshLocation()
         if (locationResult.isFailure) {
             val error = (locationResult.exceptionOrNull() as? LocationException)?.error?.toString()
-            logger.e(TAG, "Location capture failed for $attendanceRecordId/$sequence: $error")
-            crashReporter.log("LOCATION_CHECK capture_failed attendance=$attendanceRecordId sequence=$sequence error=$error")
             return if (runAttemptCount < MAX_CAPTURE_ATTEMPTS - 1) {
+                logger.w(TAG, "Location capture attempt ${runAttemptCount + 1} failed for $attendanceRecordId/$sequence: $error")
                 Result.retry()
             } else {
+                logger.e(TAG, "Location capture failed for $attendanceRecordId/$sequence after $MAX_CAPTURE_ATTEMPTS attempts: $error")
                 Result.success()
             }
         }
@@ -100,8 +119,7 @@ class LocationCheckCaptureWorker @AssistedInject constructor(
         )
 
         locationCheckDao.insert(entity)
-        logger.d(TAG, "Captured check $sequence for $attendanceRecordId at ${location.latitude},${location.longitude}")
-        crashReporter.log("LOCATION_CHECK captured attendance=$attendanceRecordId sequence=$sequence")
+        logger.i(TAG, "Captured check $sequence for $attendanceRecordId (accuracy=${location.accuracy}m)")
 
         LocationCheckSyncWorker.syncNow(applicationContext)
         return Result.success()
@@ -130,6 +148,7 @@ class LocationCheckCaptureWorker @AssistedInject constructor(
                 ExistingWorkPolicy.KEEP,
                 request
             )
+            Timber.tag(TAG).d("Enqueued capture for attendance=%s sequence=%d", attendanceRecordId, sequence)
         }
     }
 }

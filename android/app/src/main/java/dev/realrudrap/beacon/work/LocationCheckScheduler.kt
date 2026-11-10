@@ -48,6 +48,7 @@ class LocationCheckScheduler @Inject constructor(
             }
 
         val now = System.currentTimeMillis()
+        var scheduled = 0
         CHECKPOINT_MINUTES.forEachIndexed { index, offsetMinutes ->
             val sequence = index + 1
             val triggerAt = clockInMillis + offsetMinutes * 60_000L
@@ -56,7 +57,9 @@ class LocationCheckScheduler @Inject constructor(
                 return@forEachIndexed
             }
             setAlarm(triggerAt, record.id, sequence)
+            scheduled++
         }
+        logger.i(TAG, "Scheduled $scheduled location check(s) for ${record.id}")
     }
 
     suspend fun rescheduleFromOpenRecord() {
@@ -77,6 +80,7 @@ class LocationCheckScheduler @Inject constructor(
                 logger.e(TAG, "Failed to cancel location alarm $sequence", e)
             }
         }
+        logger.d(TAG, "Cancelled all location check alarms")
     }
 
     private fun setAlarm(triggerAtMillis: Long, attendanceRecordId: String, sequence: Int) {
@@ -99,7 +103,7 @@ class LocationCheckScheduler @Inject constructor(
             }
             logger.d(TAG, "Scheduled check $sequence for $attendanceRecordId at $triggerAtMillis (exact=$canExact)")
         } catch (e: SecurityException) {
-            logger.e(TAG, "Exact alarm not permitted; falling back to inexact for check $sequence", e)
+            logger.w(TAG, "Exact alarm not permitted; falling back to inexact for check $sequence", e)
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pending)
         } catch (e: Exception) {
             logger.e(TAG, "Failed to schedule location check $sequence", e)
@@ -128,7 +132,7 @@ class LocationCheckScheduler @Inject constructor(
         private const val REQUEST_CODE_BASE = 7300
 
         /** Checkpoints from clock-in: 90, 180, 270, 360, 450, 540 minutes. */
-        val CHECKPOINT_MINUTES = listOf(90, 180, 270, 360, 450, 540)
+        val CHECKPOINT_MINUTES = listOf(1,2,3,4,5,90, 180, 270, 360, 450, 540)
         val CHECKPOINT_COUNT = CHECKPOINT_MINUTES.size
         val MAX_WINDOW_MINUTES = CHECKPOINT_MINUTES.last()
 

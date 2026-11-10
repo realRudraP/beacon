@@ -3,7 +3,6 @@ package dev.realrudrap.beacon.data.remote
 import dev.realrudrap.beacon.data.local.DeviceInfoManager
 import dev.realrudrap.beacon.data.local.TokenManager
 import dev.realrudrap.beacon.data.remote.models.RefreshRequest
-import dev.realrudrap.beacon.domain.provider.CrashReportingProvider
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -11,6 +10,7 @@ import okhttp3.Authenticator
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.Route
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,8 +19,7 @@ class TokenAuthenticator @Inject constructor(
     private val tokenManager: TokenManager,
     private val authApiService: dagger.Lazy<AuthApiService>,
     private val deviceInfoManager: DeviceInfoManager,
-    private val authEventBus: AuthEventBus,
-    private val crashReporter: CrashReportingProvider
+    private val authEventBus: AuthEventBus
 ) : Authenticator {
 
     // This is used to prevent the thundering herd problem
@@ -63,10 +62,14 @@ class TokenAuthenticator @Inject constructor(
 
                 val refreshToken = tokenManager.getRefreshToken()
                 if (refreshToken.isNullOrBlank()) {
-                    // No way to recover without logging in again.
+                    val hadAccessToken = !tokenManager.getAccessToken().isNullOrBlank()
                     tokenManager.clearTokens()
-                    logError("refresh_token_missing")
-                    authEventBus.emit(AuthEvent.Unauthorized)
+                    if (hadAccessToken) {
+                        logWarning("refresh_token_missing")
+                        authEventBus.emit(AuthEvent.Unauthorized)
+                    } else {
+                        log("unauthenticated_request")
+                    }
                     return@runBlocking null
                 }
 
@@ -81,7 +84,7 @@ class TokenAuthenticator @Inject constructor(
                     // Network error / timeout: the device may simply be offline.
                     // Keep the tokens so the request can be retried later instead of
                     // permanently logging the worker out.
-                    logError("refresh_network_error", e)
+                    logWarning("refresh_network_error", e)
                     return@runBlocking null
                 }
 
@@ -101,7 +104,7 @@ class TokenAuthenticator @Inject constructor(
                     failPermanently("refresh_rejected_http_$code")
                 } else {
                     // 5xx / 408 / 429 etc. are transient. Keep tokens for a later retry.
-                    logError("refresh_transient_http_$code")
+                    logWarning("refresh_transient_http_$code")
                 }
                 return@runBlocking null
             }
@@ -130,20 +133,23 @@ class TokenAuthenticator @Inject constructor(
     }
 
     private fun log(message: String) {
-        crashReporter.log("AUTH $message")
+        Timber.tag(TAG).i("AUTH %s", message)
+    }
+
+    private fun logWarning(message: String, throwable: Throwable? = null) {
+        Timber.tag(TAG).w(throwable, "AUTH %s", message)
     }
 
     private fun logError(message: String, throwable: Throwable? = null) {
-        crashReporter.log("AUTH $message")
-        crashReporter.recordException(AuthTokenException(message, throwable))
+        if (throwable != null) {
+            Timber.tag(TAG).e(throwable, "AUTH %s", message)
+        } else {
+            Timber.tag(TAG).e("AUTH %s", message)
+        }
     }
 
-    private class AuthTokenException(
-        message: String,
-        cause: Throwable? = null
-    ) : Exception("beacon_auth_$message", cause)
-
     private companion object {
+        const val TAG = "TokenAuthenticator"
         const val HEADER_TOKEN_REFRESHED = "X-Beacon-Token-Refreshed"
     }
 }

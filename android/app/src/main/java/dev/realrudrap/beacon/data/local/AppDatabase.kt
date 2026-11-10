@@ -7,6 +7,7 @@ import dev.realrudrap.beacon.data.local.entity.AttendanceEntity
 import dev.realrudrap.beacon.data.local.entity.CashTransactionEntity
 import dev.realrudrap.beacon.data.local.entity.ConfigEntity
 import dev.realrudrap.beacon.data.local.entity.LocationCheckEntity
+import dev.realrudrap.beacon.data.local.entity.WorkerFailureLogEntity
 import dev.realrudrap.beacon.domain.model.User
 
 @Database(
@@ -15,9 +16,10 @@ import dev.realrudrap.beacon.domain.model.User
         ConfigEntity::class,
         AttendanceEntity::class,
         CashTransactionEntity::class,
-        LocationCheckEntity::class
+        LocationCheckEntity::class,
+        WorkerFailureLogEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -27,4 +29,5 @@ abstract class AppDatabase: RoomDatabase() {
     abstract fun attendanceDao(): AttendanceDao
     abstract  fun cashTransactionDao(): CashTransactionDao
     abstract fun locationCheckDao(): LocationCheckDao
+    abstract fun workerFailureLogDao(): WorkerFailureLogDao
 }

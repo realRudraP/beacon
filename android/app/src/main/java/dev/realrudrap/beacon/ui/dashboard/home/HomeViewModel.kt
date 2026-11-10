@@ -96,9 +96,9 @@ class HomeViewModel @Inject constructor(
 
         // 2. Observe Config
         viewModelScope.launch {
-            logger.d("HomeViewModel", "Waiting for config...")
+            logger.d(TAG, "Waiting for config")
             configRepository.config.filterNotNull().collect { config ->
-                logger.d("HomeViewModel", "Config received: $config")
+                logger.d(TAG, "Config loaded (geofences=${config.geofences?.size ?: 0})")
                 latestConfig = config
                 _homeUiState.update {
                     it.copy(
@@ -145,11 +145,15 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _homeUiState.update { it.copy(isSyncing = true) }
             try {
-                configRepository.refreshConfig()
-                userRepository.refreshUser()
+                val configResult = configRepository.refreshConfig()
+                val userResult = userRepository.refreshUser()
+                logger.i(
+                    TAG,
+                    "Initial sync complete (config=${configResult.isSuccess}, user=${userResult.isSuccess})"
+                )
                 AttendanceSyncWorker.syncNow(workManager)
             } catch (e: Exception) {
-                logger.e("HomeViewModel", "Initial sync failed", e)
+                logger.e(TAG, "Initial sync failed", e)
             } finally {
                 _homeUiState.update {
                     it.copy(
@@ -171,9 +175,8 @@ class HomeViewModel @Inject constructor(
             _homeUiState.update { it.copy(isClockInLoading = true) }
 
             val locationResult = locationProvider.getFreshLocation()
-            logger.d("HomeViewModel", "Location result: $locationResult")
             if (locationResult.isFailure) {
-                logger.d("HomeViewModel", "Location failed: ${locationResult.exceptionOrNull()}")
+                logger.w(TAG, "Location failed for clock-in: ${locationResult.exceptionOrNull()?.javaClass?.simpleName}")
                 val message = (locationResult.exceptionOrNull() as? LocationException)
                     ?.message
                     ?: "Failed to get location. Please try again."
@@ -184,19 +187,19 @@ class HomeViewModel @Inject constructor(
 
             val location = locationResult.getOrThrow()
             val geofences = latestConfig?.geofences
-            logger.d("HomeViewModel", "Geofences: $geofences")
-            logger.d("HomeViewModel", "Worker location: ${location.latitude}, ${location.longitude}")
+            logger.d(TAG, "Evaluating geofence (accuracy=${location.accuracy}m, count=${geofences?.size ?: 0})")
 
             if (geofences.isNullOrEmpty()) {
-                logger.d("HomeViewModel", "Geofences empty")
+                logger.w(TAG, "Clock-in blocked: no geofences configured")
                 _events.send(HomeEvent.ShowError("Attendance is not configured yet. Please contact your supervisor."))
                 _homeUiState.update { it.copy(isClockInLoading = false) }
                 return@launch
             }
             val withinGeofence = isWithinAnyGeofence(location.latitude, location.longitude, geofences)
-            logger.d("HomeViewModel", "Within geofence: $withinGeofence")
+            logger.d(TAG, "Geofence check result: within=$withinGeofence")
 
-            if (!isWithinAnyGeofence(location.latitude, location.longitude, geofences)) {
+            if (!withinGeofence) {
+                logger.w(TAG, "Clock-in blocked: outside all geofences")
                 _events.send(
                     HomeEvent.ShowError(
                         "You are not within an approved work area.\n\n" +
@@ -229,11 +232,16 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             val result = attendanceRepository.clockIn(lat, long, photoLocalPath)
             if (result.isSuccess) {
+                logger.i(TAG, "Clock-in saved locally")
                 _homeUiState.update { it.copy(clockInState = ClockInState.ClockedIn) }
-                attendanceRepository.getOpenRecord()?.let { record ->
+                val record = attendanceRepository.getOpenRecord()
+                if (record != null) {
                     locationCheckScheduler.schedule(record)
+                } else {
+                    logger.w(TAG, "Clock-in succeeded but no open record was found for scheduling")
                 }
             } else {
+                logger.e(TAG, "Failed to save clock-in record", result.exceptionOrNull())
                 _events.send(
                     HomeEvent.ShowError(
                         "Failed to save your clock-in record. Please try again.\n\n" +
@@ -266,8 +274,6 @@ class HomeViewModel @Inject constructor(
 
             val location = locationResult.getOrThrow()
 
-            // Get today's record ID for the update call
-            val todayRecord = attendanceRepository.todayRecord
             val recordId = attendanceRepository.todayRecord.first()?.id
             if (recordId == null) {
                 _events.send(HomeEvent.ShowError("Could not find today's attendance record. Please contact your supervisor."))
@@ -289,10 +295,12 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             val result = attendanceRepository.clockOut(recordId, lat, long, photoLocalPath)
             if (result.isSuccess) {
+                logger.i(TAG, "Clock-out saved locally")
                 _homeUiState.update { it.copy(clockInState = ClockInState.DoneForTheDay) }
                 locationCheckScheduler.cancelAll()
                 LocationCheckSyncWorker.syncNow(workManager)
             } else {
+                logger.e(TAG, "Failed to save clock-out record", result.exceptionOrNull())
                 _events.send(
                     HomeEvent.ShowError(
                         "Failed to save your clock-out record. Please try again.\n\n" +
@@ -311,7 +319,9 @@ class HomeViewModel @Inject constructor(
     fun onRefresh() {
         viewModelScope.launch {
             _homeUiState.update { it.copy(isSyncing = true) }
-            configRepository.refreshConfig()
+            logger.d(TAG, "Manual refresh requested")
+            val result = configRepository.refreshConfig()
+            logger.i(TAG, "Manual config refresh complete (success=${result.isSuccess})")
             AttendanceSyncWorker.syncNow(workManager)
             _homeUiState.update { it.copy(isSyncing = false) }
         }
@@ -367,5 +377,9 @@ class HomeViewModel @Inject constructor(
                 sin(dLon / 2) * sin(dLon / 2)
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
         return earthRadiusMeters * c
+    }
+
+    private companion object {
+        const val TAG = "HomeViewModel"
     }
 }

@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.lifecycleScope
 import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.AndroidEntryPoint
+import dev.realrudrap.beacon.data.local.TokenManager
 import dev.realrudrap.beacon.domain.repository.UserRepository
 import dev.realrudrap.beacon.ui.MainViewModel
 import dev.realrudrap.beacon.ui.auth.LoginScreen
@@ -38,10 +39,13 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var userRepository: UserRepository
 
+    @Inject
+    lateinit var tokenManager: TokenManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
+        Timber.d("MainActivity: onCreate")
         registerFcmToken()
 
         setContent {
@@ -75,7 +79,15 @@ class MainActivity : ComponentActivity() {
                     alarmManager.canScheduleExactAlarms()
                 } else true
 
-                return hasCamera && hasFineLocation && hasBgLocation && hasNotifications && hasExactAlarm
+
+                val granted = hasCamera && hasFineLocation && hasBgLocation && hasNotifications && hasExactAlarm
+                if (!granted) {
+                    Timber.d(
+                        "MainActivity: missing permissions camera=%s fineLocation=%s bgLocation=%s notifications=%s exactAlarm=%s",
+                        hasCamera, hasFineLocation, hasBgLocation, hasNotifications, hasExactAlarm
+                    )
+                }
+                return granted
             }
 
             LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -104,6 +116,7 @@ class MainActivity : ComponentActivity() {
                     isLoggedIn == false -> {
                         LoginScreen(
                             onLoginSuccess = {
+                                Timber.i("MainActivity: login succeeded")
                                 registerFcmToken()
                                 viewModel.checkSession()
                             }
@@ -120,11 +133,21 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun registerFcmToken() {
+        if (tokenManager.getRefreshToken().isNullOrBlank()) {
+            Timber.d("MainActivity: skipping FCM token registration until sign-in")
+            return
+        }
+
         try {
             FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
                 if (!token.isNullOrBlank()) {
                     lifecycleScope.launch {
-                        userRepository.updateFcmToken(token)
+                        val result = userRepository.updateFcmToken(token)
+                        if (result.isSuccess) {
+                            Timber.d("MainActivity: FCM token registered")
+                        } else {
+                            Timber.w(result.exceptionOrNull(), "MainActivity: failed to register FCM token")
+                        }
                     }
                 }
             }.addOnFailureListener { e ->

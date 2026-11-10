@@ -11,7 +11,6 @@ import dev.realrudrap.beacon.data.remote.ConfigApiService
 import dev.realrudrap.beacon.data.local.entity.ConfigEntity
 import dev.realrudrap.beacon.domain.model.Config
 import dev.realrudrap.beacon.domain.provider.AppLogger
-import dev.realrudrap.beacon.domain.provider.CrashReportingProvider
 import dev.realrudrap.beacon.domain.repository.ConfigRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -28,7 +27,6 @@ class ConfigRepositoryImpl @Inject constructor(
     private val configDao: ConfigDao,
     private val json: Json,
     private val logger: AppLogger,
-    private val crashReporter: CrashReportingProvider,
     private val dataStore : DataStore<Preferences>
 ) : ConfigRepository{
     val LAST_SYNCED_AT_KEY = longPreferencesKey("last_synced_at")
@@ -38,31 +36,27 @@ class ConfigRepositoryImpl @Inject constructor(
     @OptIn(ExperimentalTime::class)
     override suspend fun refreshConfig(): Result<Unit> {
         return try {
-            logger.d("ConfigRepository", "Starting config refresh")
+            logger.d(TAG, "Refreshing config")
             val response = api.getConfig()
-            logger.d("ConfigRepository", "Response code: ${response.code()}")
             if (response.isSuccessful) {
                 val body = response.body()
-                logger.d("ConfigRepository", "Body: $body")
                 if (body != null) {
                     val encoded = json.encodeToString(body)
-                    logger.d("ConfigRepository", "Encoded: $encoded")
                     configDao.saveConfig(ConfigEntity(json = encoded))
                     dataStore.edit { prefs ->
                         prefs[LAST_SYNCED_AT_KEY] = Clock.System.now().toEpochMilliseconds()
                     }
-                    logger.d("ConfigRepository", "Saved to DB")
-                    logger.d("ConfigRepository", "Config saved to DB successfully")
+                    logger.i(TAG, "Config refreshed (HTTP ${response.code()})")
                 } else {
-                    logger.e("ConfigRepository", "Body was null despite 200", null)
+                    logger.e(TAG, "Config refresh returned an empty body (HTTP ${response.code()})", null)
                 }
                 Result.success(Unit)
             } else {
+                logger.w(TAG, "Config refresh failed: HTTP ${response.code()}")
                 Result.failure(Exception("Failed to fetch config: ${response.code()}"))
             }
         } catch (e: Exception) {
-            logger.e("ConfigRepository", "Error fetching config", e)
-            crashReporter.recordException(e)
+            logger.e(TAG, "Error refreshing config", e)
             Result.failure(e)
         }
     }
@@ -76,4 +70,7 @@ class ConfigRepositoryImpl @Inject constructor(
             prefs[LAST_SYNCED_AT_KEY]?.let { Instant.fromEpochMilliseconds(it) }
         }
 
+    private companion object {
+        const val TAG = "ConfigRepository"
+    }
 }
